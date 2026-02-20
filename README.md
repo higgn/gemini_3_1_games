@@ -30,12 +30,17 @@ Synthesized Audio Engine: Generates engine RPM sounds, wind noise, tire screechi
 
 ```
 
-https://github.com/user-attachments/assets/0a71dfe2-4c9c-4f37-ab03-ea4ed1ac2ae5
-
-
-
 #game 1
 
-please star the repo i have never got more thn 7 stars and yes please add more games and contribute if you think or any suggestions.
+https://github.com/user-attachments/assets/0a71dfe2-4c9c-4f37-ab03-ea4ed1ac2ae5
+
+#game 2
+
+
+https://github.com/user-attachments/assets/3372dc58-7eb5-4219-a017-4dfa4a679812
+
+
+
+please star the repo and your kind star will  be apperciated , yes please add more games and contribute if you want or any suggestions.
 
 take care
