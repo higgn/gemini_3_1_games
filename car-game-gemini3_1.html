@@ -1,0 +1,839 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <title>MadOut 2: V2 Reddit Edition</title>
+    <style>
+        :root {
+            --accent: #ff4500; /* Reddit Orange */
+            --bg-ui: rgba(15, 15, 20, 0.9);
+            --text-main: #ffffff;
+        }
+        * { box-sizing: border-box; user-select: none; touch-action: none; margin: 0; padding: 0; font-family: 'Courier New', monospace; }
+        body, html { width: 100%; height: 100%; background-color: #000; overflow: hidden; }
+        
+        #game-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
+        
+        /* Start Screen */
+        #start-screen {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: radial-gradient(circle, #2a0a00 0%, #000000 100%);
+            z-index: 1000; display: flex; flex-direction: column; align-items: center; justify-content: center;
+            color: var(--text-main);
+        }
+        .title { font-size: 5vw; font-weight: 900; text-transform: uppercase; text-shadow: 0 0 20px var(--accent); margin-bottom: 10px; }
+        .subtitle { font-size: 18px; color: #aaa; margin-bottom: 30px; letter-spacing: 2px; }
+        
+        .options-grid {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 20px; background: rgba(0,0,0,0.5);
+            padding: 30px; border: 1px solid var(--accent); border-radius: 10px; box-shadow: 0 0 30px rgba(255, 69, 0, 0.3);
+            margin-bottom: 30px; width: 90%; max-width: 800px;
+        }
+        .opt-group { display: flex; flex-direction: column; gap: 8px; }
+        .opt-group label { font-size: 14px; color: var(--accent); font-weight: bold; text-transform: uppercase; }
+        select {
+            background: #111; color: #fff; border: 1px solid #444; padding: 10px; font-size: 16px; border-radius: 5px; outline: none;
+            font-family: 'Courier New', monospace; cursor: pointer; transition: 0.2s;
+        }
+        select:focus { border-color: var(--accent); box-shadow: 0 0 10px var(--accent); }
+        
+        #btn-start {
+            padding: 15px 50px; font-size: 24px; background: var(--accent); border: none; color: #fff; font-weight: bold;
+            border-radius: 5px; cursor: pointer; box-shadow: 0 0 20px var(--accent); transition: 0.2s; text-transform: uppercase;
+        }
+        #btn-start:hover { transform: scale(1.05); background: #ff5722; }
+
+        /* HUD */
+        #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 10; pointer-events: none; display: flex; flex-direction: column; justify-content: space-between; }
+        .hud-top { display: flex; justify-content: space-between; padding: 20px; pointer-events: auto; }
+        .stat-box { background: var(--bg-ui); padding: 10px 15px; border-left: 4px solid var(--accent); color: var(--text-main); font-size: 16px; font-weight: bold; text-transform: uppercase; box-shadow: 0 4px 10px rgba(0,0,0,0.5); margin-bottom: 5px; }
+        .btn-action { cursor: pointer; background: #333; transition: 0.1s; text-align: center; }
+        .btn-action:active { background: var(--accent); }
+        
+        /* Speedometer */
+        .speedometer { position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); text-align: center; }
+        .speed-val { font-size: 60px; font-weight: 900; text-shadow: 0 0 15px var(--accent); line-height: 1; font-style: italic; }
+        .speed-unit { font-size: 16px; color: var(--accent); font-weight: bold; letter-spacing: 4px; }
+        
+        /* Controls */
+        .controls-layer { position: absolute; bottom: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 5; }
+        .joystick-zone { position: absolute; bottom: 20px; left: 20px; width: 160px; height: 160px; pointer-events: auto; border-radius: 50%; background: rgba(255,255,255,0.05); border: 2px dashed rgba(255,255,255,0.2); }
+        .joystick-knob { position: absolute; top: 50%; left: 50%; width: 50px; height: 50px; background: rgba(255,69,0,0.8); border-radius: 50%; transform: translate(-50%, -50%); pointer-events: none; box-shadow: 0 0 20px var(--accent); }
+        .pedals { position: absolute; bottom: 30px; right: 30px; display: flex; gap: 15px; pointer-events: auto; }
+        .btn-pedal { width: 75px; height: 75px; border-radius: 50%; background: var(--bg-ui); border: 2px solid rgba(255,255,255,0.2); color: #fff; font-weight: bold; display: flex; align-items: center; justify-content: center; box-shadow: 0 5px 15px rgba(0,0,0,0.5); transition: 0.1s; }
+        .btn-pedal:active { transform: scale(0.9); }
+        .btn-gas { width: 90px; height: 90px; font-size: 18px; border-color: #00ff66; color: #00ff66; }
+        .btn-brake { border-color: #ff3300; }
+        .btn-nitro { border-color: #00ccff; color: #00ccff; text-shadow: 0 0 10px #00ccff; }
+
+        #warp-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #fff; opacity: 0; pointer-events: none; z-index: 2; mix-blend-mode: overlay; transition: opacity 0.5s; }
+        #landscape-warning { display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #000; z-index: 2000; color: var(--accent); align-items: center; justify-content: center; font-size: 24px; text-align: center; padding: 20px; font-weight: bold; }
+        
+        @media screen and (orientation: portrait) { #landscape-warning { display: flex; } }
+        @media (max-width: 800px) {
+            .options-grid { grid-template-columns: 1fr; gap: 10px; padding: 15px; }
+            .title { font-size: 32px; }
+            .speed-val { font-size: 40px; }
+        }
+    </style>
+    <!-- Import Maps -->
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/",
+                "cannon-es": "https://unpkg.com/cannon-es@0.20.0/dist/cannon-es.js"
+            }
+        }
+    </script>
+</head>
+<body>
+
+    <div id="landscape-warning">ROTATE DEVICE TO LANDSCAPE FOR IMMERSION</div>
+
+    <div id="start-screen">
+        <div class="title">MadOut 2: Reddit Edition</div>
+        <div class="subtitle">Infinite Open World • Hyper Physics • Unlimited Everything</div>
+        
+        <div class="options-grid">
+            <div class="opt-group">
+                <label>Time of Day</label>
+                <select id="opt-time">
+                    <option value="day">Daylight Exposure</option>
+                    <option value="morning">Morning Sunrise</option>
+                    <option value="night">Night Mode</option>
+                </select>
+            </div>
+            <div class="opt-group">
+                <label>World Environment</label>
+                <select id="opt-world">
+                    <option value="city">City Mafia</option>
+                    <option value="forest">Forest Jungle</option>
+                    <option value="desert">Desert Sand</option>
+                    <option value="snow">Snow Drift</option>
+                    <option value="moon">Moon Surface (Low Gravity)</option>
+                    <option value="lava">Lava Surface</option>
+                    <option value="cyberpunk">Glass Cyberpunk</option>
+                </select>
+            </div>
+            <div class="opt-group">
+                <label>Vehicle Type</label>
+                <select id="opt-vehicle">
+                    <option value="car">Super Car</option>
+                    <option value="bike">Super Bike</option>
+                    <option value="ship">Space Galactic Ship</option>
+                </select>
+            </div>
+            <div class="opt-group">
+                <label>Traffic Mode</label>
+                <select id="opt-traffic">
+                    <option value="off">Empty Highway (Max Speed)</option>
+                    <option value="on">Traffic ON (Dodging)</option>
+                </select>
+            </div>
+        </div>
+        <button id="btn-start">ENTER SIMULATION</button>
+    </div>
+
+    <div id="game-container"></div>
+    <div id="warp-overlay"></div>
+
+    <div id="ui-layer">
+        <div class="hud-top">
+            <div>
+                <div class="stat-box" style="color:#00ff66;">MONEY: $999,999,999</div>
+                <div class="stat-box" style="color:#00ccff;">NITRO: INFINITE</div>
+            </div>
+            <div>
+                <div class="stat-box btn-action" id="btn-reset-pos">RESET TO START</div>
+            </div>
+        </div>
+        
+        <div class="speedometer">
+            <div class="speed-val" id="hud-speed">0</div>
+            <div class="speed-unit">KM / S</div>
+        </div>
+    </div>
+
+    <div class="controls-layer">
+        <div class="joystick-zone" id="joystick">
+            <div class="joystick-knob" id="joystick-knob"></div>
+        </div>
+        <div class="pedals">
+            <div class="btn-pedal btn-brake" id="btn-brake">BRK</div>
+            <div class="btn-pedal btn-nitro" id="btn-nitro">N2O</div>
+            <div class="btn-pedal btn-gas" id="btn-gas">GAS</div>
+        </div>
+    </div>
+
+<script type="module">
+import * as THREE from 'three';
+import * as CANNON from 'cannon-es';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+
+// ==========================================
+// GLOBALS & STATE
+// ==========================================
+const Input = { w:false, a:false, s:false, d:false, shift:false, steer:0, gas:false, brake:false, nitro:false };
+const Config = { time: 'day', world: 'city', vehicle: 'car', traffic: 'off' };
+let AudioEngineInstance = null;
+
+// ==========================================
+// AUDIO SYNTHESIZER
+// ==========================================
+class AudioEngine {
+    constructor() {
+        this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+        this.master = this.ctx.createGain();
+        this.master.connect(this.ctx.destination);
+        this.master.gain.value = 0.4;
+
+        this.osc = this.ctx.createOscillator();
+        this.osc.type = Config.vehicle === 'ship' ? 'triangle' : 'sawtooth';
+        this.oscGain = this.ctx.createGain();
+        this.osc.connect(this.oscGain);
+        this.oscGain.connect(this.master);
+        this.osc.start();
+        this.oscGain.gain.value = 0;
+
+        // Noise
+        const bufSize = this.ctx.sampleRate * 2;
+        const buf = this.ctx.createBuffer(1, bufSize, this.ctx.sampleRate);
+        const data = buf.getChannelData(0);
+        for(let i=0; i<bufSize; i++) data = Math.random() * 2 - 1;
+        this.noise = this.ctx.createBufferSource();
+        this.noise.buffer = buf;
+        this.noise.loop = true;
+        this.noiseFilter = this.ctx.createBiquadFilter();
+        this.noiseFilter.type = 'lowpass';
+        this.noiseGain = this.ctx.createGain();
+        this.noise.connect(this.noiseFilter);
+        this.noiseFilter.connect(this.noiseGain);
+        this.noiseGain.connect(this.master);
+        this.noise.start();
+        this.noiseGain.gain.value = 0;
+    }
+    update(speed, nitro) {
+        if(this.ctx.state === 'suspended') return;
+        let baseFreq = Config.vehicle === 'ship' ? 100 : 50;
+        let mult = Config.vehicle === 'ship' ? 2.0 : 1.5;
+        this.osc.frequency.setTargetAtTime(baseFreq + (Math.abs(speed)*mult) + (nitro?150:0), this.ctx.currentTime, 0.1);
+        this.oscGain.gain.setTargetAtTime(speed > 2 ? 0.3 : 0.05, this.ctx.currentTime, 0.1);
+
+        this.noiseFilter.frequency.value = 100 + speed * 10;
+        this.noiseGain.gain.setTargetAtTime(Math.min(speed/150, 0.6), this.ctx.currentTime, 0.5);
+    }
+    boom() {
+        if(this.ctx.state === 'suspended') return;
+        const b = this.ctx.createOscillator(); b.type = 'square';
+        const g = this.ctx.createGain();
+        b.connect(g); g.connect(this.master);
+        b.frequency.setValueAtTime(200, this.ctx.currentTime);
+        b.frequency.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 1.5);
+        g.gain.setValueAtTime(1, this.ctx.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 1.5);
+        b.start(); b.stop(this.ctx.currentTime + 1.5);
+    }
+}
+
+// ==========================================
+// PROCEDURAL TEXTURES
+// ==========================================
+function getProcTexture(type) {
+    const canvas = document.createElement('canvas'); canvas.width = 512; canvas.height = 512;
+    const ctx = canvas.getContext('2d');
+    if(type === 'asphalt') {
+        ctx.fillStyle = '#222'; ctx.fillRect(0,0,512,512);
+        for(let i=0; i<20000; i++) { ctx.fillStyle = Math.random()>0.5?'#1a1a1a':'#2a2a2a'; ctx.fillRect(Math.random()*512, Math.random()*512, 2, 2); }
+    } else if (type === 'sand') {
+        ctx.fillStyle = '#d2b48c'; ctx.fillRect(0,0,512,512);
+        for(let i=0; i<10000; i++) { ctx.fillStyle = '#c2a47c'; ctx.fillRect(Math.random()*512, Math.random()*512, 3, 3); }
+    } else if (type === 'snow') {
+        ctx.fillStyle = '#ffffff'; ctx.fillRect(0,0,512,512);
+        for(let i=0; i<5000; i++) { ctx.fillStyle = '#eeeeee'; ctx.fillRect(Math.random()*512, Math.random()*512, 4, 4); }
+    } else if (type === 'moon') {
+        ctx.fillStyle = '#444'; ctx.fillRect(0,0,512,512);
+        for(let i=0; i<100; i++) {
+            ctx.beginPath(); ctx.arc(Math.random()*512, Math.random()*512, Math.random()*20, 0, Math.PI*2);
+            ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.fill();
+        }
+    } else if (type === 'cyber') {
+        ctx.fillStyle = '#050510'; ctx.fillRect(0,0,512,512);
+        ctx.strokeStyle = '#00ffcc'; ctx.lineWidth = 4;
+        for(let i=0; i<=512; i+=64) { ctx.beginPath(); ctx.moveTo(i,0); ctx.lineTo(i,512); ctx.stroke(); ctx.beginPath(); ctx.moveTo(0,i); ctx.lineTo(512,i); ctx.stroke(); }
+    } else if (type === 'lava') {
+        ctx.fillStyle = '#ff3300'; ctx.fillRect(0,0,512,512);
+        for(let i=0; i<2000; i++) { ctx.fillStyle = Math.random()>0.5?'#ffaa00':'#111'; ctx.fillRect(Math.random()*512, Math.random()*512, 10, 10); }
+    }
+    const tex = new THREE.CanvasTexture(canvas); tex.wrapS = THREE.RepeatWrapping; tex.wrapT = THREE.RepeatWrapping; tex.repeat.set(50, 1000);
+    return tex;
+}
+
+// ==========================================
+// GAME ENGINE
+// ==========================================
+class Engine {
+    constructor() {
+        this.scene = new THREE.Scene();
+        this.camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 8000);
+        this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+        this.renderer.setSize(window.innerWidth, window.innerHeight);
+        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        this.renderer.shadowMap.enabled = true;
+        document.getElementById('game-container').appendChild(this.renderer.domElement);
+
+        // Physics
+        this.world = new CANNON.World();
+        this.world.broadphase = new CANNON.SAPBroadphase(this.world);
+        this.world.gravity.set(0, Config.world === 'moon' ? -1.62 : -9.81, 0);
+        this.world.defaultContactMaterial.friction = 0.6;
+
+        this.clock = new THREE.Clock();
+        this.trails = [];
+        this.traffic = [];
+        this.isLightSpeed = false;
+
+        this.setupPostProcessing();
+        this.setupLighting();
+        this.setupWorld();
+        this.setupVehicle();
+        if(Config.traffic === 'on') this.setupTraffic();
+        this.setupParticles();
+
+        window.addEventListener('resize', () => {
+            this.camera.aspect = window.innerWidth/window.innerHeight;
+            this.camera.updateProjectionMatrix();
+            this.renderer.setSize(window.innerWidth, window.innerHeight);
+            this.composer.setSize(window.innerWidth, window.innerHeight);
+        });
+    }
+
+    setupPostProcessing() {
+        this.composer = new EffectComposer(this.renderer);
+        this.composer.addPass(new RenderPass(this.scene, this.camera));
+        
+        let bloomStrength = 0.5, bloomRadius = 0.5, bloomThreshold = 0.8;
+        if(Config.time === 'night') { bloomStrength = 1.5; bloomThreshold = 0.2; }
+        if(Config.world === 'cyberpunk' || Config.world === 'lava') { bloomStrength = 2.0; bloomThreshold = 0.1; }
+        
+        const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), bloomStrength, bloomRadius, bloomThreshold);
+        this.composer.addPass(bloomPass);
+    }
+
+    setupLighting() {
+        let ambLight, dirLight, fogColor;
+        
+        if (Config.time === 'morning') {
+            ambLight = 0xffaa88; dirLight = 0xffddaa; fogColor = 0xffaa88;
+        } else if (Config.time === 'night') {
+            ambLight = 0x222244; dirLight = 0x4444aa; fogColor = 0x050510;
+        } else {
+            ambLight = 0xffffff; dirLight = 0xffffff; fogColor = 0x88ccff;
+        }
+
+        // World overrides
+        if(Config.world === 'moon') fogColor = 0x000000;
+        if(Config.world === 'cyberpunk') fogColor = 0x020205;
+        if(Config.world === 'lava') { fogColor = 0x330000; ambLight = 0xff3300; }
+        if(Config.world === 'snow') fogColor = 0xffffff;
+
+        this.scene.background = new THREE.Color(fogColor);
+        this.scene.fog = new THREE.FogExp2(fogColor, Config.world === 'cyberpunk' ? 0.001 : 0.003);
+
+        this.scene.add(new THREE.AmbientLight(ambLight, 1.0));
+        const dl = new THREE.DirectionalLight(dirLight, Config.time === 'night' ? 0.5 : 2.0);
+        dl.position.set(100, 200, 50);
+        dl.castShadow = true;
+        dl.shadow.camera.near = 10; dl.shadow.camera.far = 1000;
+        dl.shadow.camera.left = -200; dl.shadow.camera.right = 200;
+        dl.shadow.camera.top = 200; dl.shadow.camera.bottom = -200;
+        dl.shadow.mapSize.width = 2048; dl.shadow.mapSize.height = 2048;
+        this.scene.add(dl);
+    }
+
+    setupWorld() {
+        // Infinite Floor Physics
+        const groundShape = new CANNON.Plane();
+        const groundBody = new CANNON.Body({ mass: 0 });
+        groundBody.addShape(groundShape);
+        groundBody.quaternion.setFromAxisAngle(new CANNON.Vec3(1,0,0), -Math.PI/2);
+        this.world.addBody(groundBody);
+
+        // Texture
+        let texType = 'asphalt';
+        if(Config.world === 'desert') texType = 'sand';
+        if(Config.world === 'snow') texType = 'snow';
+        if(Config.world === 'moon') texType = 'moon';
+        if(Config.world === 'cyberpunk') texType = 'cyber';
+        if(Config.world === 'lava') texType = 'lava';
+
+        const groundMat = new THREE.MeshStandardMaterial({ 
+            map: getProcTexture(texType),
+            roughness: Config.world === 'cyberpunk' ? 0.1 : 0.8,
+            metalness: Config.world === 'cyberpunk' ? 0.8 : 0.1,
+            emissive: Config.world === 'lava' ? 0x440000 : 0x000000
+        });
+
+        // Create extremely long road
+        const groundGeo = new THREE.PlaneGeometry(300, 200000);
+        const groundMesh = new THREE.Mesh(groundGeo, groundMat);
+        groundMesh.rotation.x = -Math.PI/2;
+        groundMesh.position.z = -90000;
+        groundMesh.receiveShadow = true;
+        this.scene.add(groundMesh);
+
+        // Procedural Scenery (Treadmill)
+        this.sceneryCount = 1000;
+        let geo, mat;
+        
+        if (Config.world === 'city') {
+            geo = new THREE.BoxGeometry(20, 100, 20); geo.translate(0, 50, 0);
+            mat = new THREE.MeshStandardMaterial({ color: 0x333333, roughness: 0.5 });
+        } else if (Config.world === 'forest') {
+            geo = new THREE.ConeGeometry(15, 60, 8); geo.translate(0, 30, 0);
+            mat = new THREE.MeshStandardMaterial({ color: 0x004400, roughness: 0.9 });
+        } else if (Config.world === 'desert') {
+            geo = new THREE.ConeGeometry(30, 20, 4); geo.translate(0, 10, 0);
+            mat = new THREE.MeshStandardMaterial({ color: 0xccaa66, roughness: 1 });
+        } else if (Config.world === 'snow' || Config.world === 'moon') {
+            geo = new THREE.DodecahedronGeometry(15); geo.translate(0, 5, 0);
+            mat = new THREE.MeshStandardMaterial({ color: Config.world==='snow'?0xffffff:0x666666 });
+        } else if (Config.world === 'cyberpunk') {
+            geo = new THREE.BoxGeometry(10, 80, 10); geo.translate(0, 40, 0);
+            mat = new THREE.MeshStandardMaterial({ color: 0x000000, emissive: 0x00ffcc, wireframe: true });
+        } else {
+            geo = new THREE.BoxGeometry(10, 20, 10);
+            mat = new THREE.MeshStandardMaterial({ color: 0x111111 }); // fallback
+        }
+
+        this.instMesh = new THREE.InstancedMesh(geo, mat, this.sceneryCount);
+        this.instMesh.castShadow = true;
+        this.instMesh.receiveShadow = true;
+
+        const dummy = new THREE.Object3D();
+        this.sceneryData = [];
+
+        for(let i=0; i<this.sceneryCount; i++) {
+            let x = (Math.random() > 0.5 ? 1 : -1) * (50 + Math.random() * 150);
+            let z = -Math.random() * 4000;
+            let sy = 0.5 + Math.random() * 2;
+            dummy.position.set(x, 0, z);
+            dummy.scale.set(1, sy, 1);
+            dummy.updateMatrix();
+            this.instMesh.setMatrixAt(i, dummy.matrix);
+            this.sceneryData.push({x, z, sy});
+        }
+        this.scene.add(this.instMesh);
+    }
+
+    setupVehicle() {
+        const isBike = Config.vehicle === 'bike';
+        const isShip = Config.vehicle === 'ship';
+
+        // Chassis Physics
+        const mass = isShip ? 1000 : (isBike ? 400 : 1500);
+        let ext = isBike ? new CANNON.Vec3(0.4, 0.4, 1.2) : (isShip ? new CANNON.Vec3(2, 0.5, 2.5) : new CANNON.Vec3(1.2, 0.4, 2.5));
+        
+        this.chassisBody = new CANNON.Body({ mass: mass });
+        this.chassisBody.addShape(new CANNON.Box(ext), new CANNON.Vec3(0, isBike ? 0 : -0.2, 0));
+        this.chassisBody.position.set(0, 5, 0);
+        
+        // Bike logic: lock roll so it doesn't fall over
+        if(isBike) this.chassisBody.angularFactor.set(1, 1, 0); 
+
+        // Ship logic: hover
+        if(isShip) {
+            this.chassisBody.linearDamping = 0.5;
+            this.chassisBody.angularDamping = 0.5;
+        }
+
+        // Chassis Visual
+        this.carMesh = new THREE.Group();
+        
+        let bodyGeo, bodyMat;
+        if(isBike) {
+            bodyGeo = new THREE.BoxGeometry(0.8, 1.0, 2.4);
+            bodyMat = new THREE.MeshStandardMaterial({ color: 0xdd0000, metalness: 0.8 });
+        } else if (isShip) {
+            bodyGeo = new THREE.ConeGeometry(2, 5, 3);
+            bodyGeo.rotateX(-Math.PI/2);
+            bodyMat = new THREE.MeshStandardMaterial({ color: 0x444444, metalness: 0.9, roughness: 0.1 });
+        } else {
+            bodyGeo = new THREE.BoxGeometry(2.4, 0.8, 5.0);
+            bodyMat = new THREE.MeshStandardMaterial({ color: 0x111111, metalness: 0.8, clearcoat: 1 });
+        }
+        
+        const mainMesh = new THREE.Mesh(bodyGeo, bodyMat);
+        mainMesh.castShadow = true;
+        if(!isShip) mainMesh.position.y = 0.4;
+        this.carMesh.add(mainMesh);
+
+        // Lights
+        this.tailMat = new THREE.MeshBasicMaterial({ color: 0x550000 });
+        const tailGeo = new THREE.BoxGeometry(isBike?0.4:0.6, 0.2, 0.1);
+        
+        this.tLeft = new THREE.Mesh(tailGeo, this.tailMat);
+        this.tLeft.position.set(isBike?0:-0.8, 0.5, isBike?1.2:2.55);
+        this.carMesh.add(this.tLeft);
+        if(!isBike) {
+            this.tRight = new THREE.Mesh(tailGeo, this.tailMat);
+            this.tRight.position.set(0.8, 0.5, 2.55);
+            this.carMesh.add(this.tRight);
+        }
+
+        const hl = new THREE.SpotLight(0xffffff, 5, 200, Math.PI/4, 0.5, 1);
+        hl.position.set(0, 1, isShip?-2:-2.5);
+        hl.target.position.set(0, 1, -20);
+        this.carMesh.add(hl);
+        this.carMesh.add(hl.target);
+
+        // Nitro Flames
+        this.flameMat = new THREE.MeshBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0 });
+        const fGeo = new THREE.ConeGeometry(0.3, 2, 8); fGeo.rotateX(Math.PI/2);
+        this.flame = new THREE.Mesh(fGeo, this.flameMat);
+        this.flame.position.set(0, 0.5, isShip?2.5:3.5);
+        this.carMesh.add(this.flame);
+
+        this.scene.add(this.carMesh);
+
+        // Vehicle Physics Setup
+        this.vehicle = new CANNON.RaycastVehicle({
+            chassisBody: this.chassisBody,
+            indexRightAxis: 0, indexUpAxis: 1, indexForwardAxis: 2
+        });
+
+        const wheelOptions = {
+            radius: isBike ? 0.35 : 0.4,
+            directionLocal: new CANNON.Vec3(0, -1, 0),
+            suspensionStiffness: isShip ? 10 : (isBike ? 50 : 40),
+            suspensionRestLength: isShip ? 1.5 : 0.4,
+            frictionSlip: isShip ? 0.1 : 5.0, // Ship slides
+            dampingRelaxation: 2.3, dampingCompression: 4.4,
+            maxSuspensionForce: 100000, rollInfluence: isBike ? 0 : 0.05,
+            axleLocal: new CANNON.Vec3(-1, 0, 0),
+            chassisConnectionPointLocal: new CANNON.Vec3(1, 0, 1),
+            maxSuspensionTravel: 0.5, useCustomSlidingRotationalSpeed: true, customSlidingRotationalSpeed: -30
+        };
+
+        const wX = isBike ? 0.1 : 1.1; 
+        const wZ = isBike ? 1.0 : 1.6; 
+        const wY = isShip ? 0 : -0.1;
+
+        if (isBike) {
+            wheelOptions.chassisConnectionPointLocal.set(0, wY, -wZ); this.vehicle.addWheel(wheelOptions);
+            wheelOptions.chassisConnectionPointLocal.set(0, wY, wZ); this.vehicle.addWheel(wheelOptions);
+        } else {
+            wheelOptions.chassisConnectionPointLocal.set(-wX, wY, -wZ); this.vehicle.addWheel(wheelOptions);
+            wheelOptions.chassisConnectionPointLocal.set(wX, wY, -wZ); this.vehicle.addWheel(wheelOptions);
+            wheelOptions.chassisConnectionPointLocal.set(-wX, wY, wZ); this.vehicle.addWheel(wheelOptions);
+            wheelOptions.chassisConnectionPointLocal.set(wX, wY, wZ); this.vehicle.addWheel(wheelOptions);
+        }
+
+        this.vehicle.addToWorld(this.world);
+
+        // Wheel Meshes (Hide for Ship)
+        this.wheelMeshes = [];
+        if(!isShip) {
+            const wGeo = new THREE.CylinderGeometry(wheelOptions.radius, wheelOptions.radius, isBike?0.2:0.3, 24);
+            wGeo.rotateZ(Math.PI/2);
+            const wMat = new THREE.MeshStandardMaterial({ color: 0x111111 });
+            for(let i=0; i < this.vehicle.wheelInfos.length; i++) {
+                const wMesh = new THREE.Mesh(wGeo, wMat);
+                this.scene.add(wMesh);
+                this.wheelMeshes.push(wMesh);
+                
+                // Kinematic bodies for wheel collisions
+                const shape = new CANNON.Cylinder(wheelOptions.radius, wheelOptions.radius, isBike?0.2:0.3, 20);
+                const wBody = new CANNON.Body({ mass: 0, type: CANNON.Body.KINEMATIC, collisionFilterGroup: 0 });
+                const q = new CANNON.Quaternion(); q.setFromAxisAngle(new CANNON.Vec3(1,0,0), -Math.PI/2);
+                wBody.addShape(shape, new CANNON.Vec3(), q);
+                this.world.addBody(wBody);
+            }
+        }
+    }
+
+    setupTraffic() {
+        const geo = new THREE.BoxGeometry(2, 1.5, 4);
+        const mat = new THREE.MeshStandardMaterial({ color: 0xaa2222 });
+        
+        for(let i=0; i<20; i++) {
+            const mesh = new THREE.Mesh(geo, mat);
+            mesh.castShadow = true;
+            this.scene.add(mesh);
+            
+            const body = new CANNON.Body({
+                mass: 1000, type: CANNON.Body.KINEMATIC,
+                position: new CANNON.Vec3((Math.random()-0.5)*20, 1, -Math.random()*2000 - 100)
+            });
+            body.addShape(new CANNON.Box(new CANNON.Vec3(1, 0.75, 2)));
+            this.world.addBody(body);
+            
+            this.traffic.push({ mesh, body, speed: 10 + Math.random()*20 });
+        }
+    }
+
+    setupParticles() {
+        this.starGeo = new THREE.BufferGeometry();
+        const pts = new Float32Array(3000 * 3);
+        for(let i=0; i<9000; i++) pts = (Math.random()-0.5)*1000;
+        this.starGeo.setAttribute('position', new THREE.BufferAttribute(pts, 3));
+        const mat = new THREE.PointsMaterial({ color: 0xffffff, size: 2, transparent: true, opacity: 0 });
+        this.starMesh = new THREE.Points(this.starGeo, mat);
+        this.scene.add(this.starMesh);
+    }
+
+    resetPos() {
+        this.chassisBody.position.set(0, 5, 0);
+        this.chassisBody.velocity.set(0,0,0);
+        this.chassisBody.angularVelocity.set(0,0,0);
+        this.chassisBody.quaternion.set(0,0,0,1);
+    }
+
+    updateControls() {
+        const gas = Input.w || Input.gas;
+        const brake = Input.s || Input.brake;
+        const nitro = Input.shift || Input.nitro;
+        
+        let steer = Input.steer * -0.5;
+        if(Input.a) steer = 0.5; if(Input.d) steer = -0.5;
+
+        const isBike = Config.vehicle === 'bike';
+        const isShip = Config.vehicle === 'ship';
+
+        // Steering
+        if(isBike) {
+            this.vehicle.setSteeringValue(steer, 0);
+        } else {
+            this.vehicle.setSteeringValue(steer, 0);
+            this.vehicle.setSteeringValue(steer, 1);
+        }
+
+        // Engine
+        const maxForce = isShip ? 0 : 6000;
+        let force = 0, brkForce = 0;
+        
+        // Measure velocity in Z direction conceptually
+        const vel = this.chassisBody.velocity;
+        const speedMps = vel.length();
+        const displaySpeed = Math.floor(speedMps * (nitro?3:1) * 3.6); // km/h -> km/s for aesthetic
+        
+        if (gas) force = -maxForce;
+        else if (brake) {
+            if(speedMps > 5) brkForce = 150;
+            else force = maxForce/2;
+        }
+
+        if(isBike) {
+            this.vehicle.applyEngineForce(force, 1);
+            this.vehicle.setBrake(brkForce, 0); this.vehicle.setBrake(brkForce, 1);
+        } else if(!isShip) {
+            this.vehicle.applyEngineForce(force, 2); this.vehicle.applyEngineForce(force, 3);
+            for(let i=0; i<4; i++) this.vehicle.setBrake(brkForce, i);
+        }
+
+        // Ship specific forces
+        if(isShip) {
+            if(gas) {
+                const fwd = new CANNON.Vec3(0,0,-10000);
+                this.chassisBody.quaternion.vmult(fwd, fwd);
+                this.chassisBody.applyLocalForce(fwd, new CANNON.Vec3(0,0,0));
+            }
+            if(brake) this.chassisBody.velocity.scale(0.95, this.chassisBody.velocity);
+            
+            // Artificial hover if too low
+            if(this.chassisBody.position.y < 3) this.chassisBody.applyForce(new CANNON.Vec3(0, 20000, 0), this.chassisBody.position);
+            
+            // Rotation based on steer
+            this.chassisBody.angularVelocity.y = steer * 2;
+        }
+
+        // Nitro
+        if(nitro) {
+            const nForce = new CANNON.Vec3(0, 0, -80000);
+            this.chassisBody.quaternion.vmult(nForce, nForce);
+            this.chassisBody.applyLocalForce(nForce, new CANNON.Vec3(0,0,0));
+            this.flameMat.opacity = 0.8 + Math.random()*0.2;
+        } else {
+            this.flameMat.opacity = 0;
+        }
+
+        // Lights
+        if(brake) this.tailMat.color.setHex(0xff0000); else this.tailMat.color.setHex(0x550000);
+
+        // Cyberpunk Light Trails
+        if((Config.world === 'cyberpunk' || nitro) && speedMps > 10) {
+            if(this.trails.length > 50) {
+                const old = this.trails.shift();
+                this.scene.remove(old);
+            }
+            const trailGeo = new THREE.BoxGeometry(0.5, 0.2, 2.0);
+            const trailMat = new THREE.MeshBasicMaterial({ color: 0x00ffcc, transparent: true, opacity: 0.5 });
+            const mesh = new THREE.Mesh(trailGeo, trailMat);
+            mesh.position.copy(this.carMesh.position);
+            mesh.position.y += 0.5;
+            mesh.quaternion.copy(this.carMesh.quaternion);
+            this.scene.add(mesh);
+            this.trails.push(mesh);
+        }
+        this.trails.forEach(t => { t.scale.z -= 0.05; t.material.opacity -= 0.05; });
+        this.trails = this.trails.filter(t => { if(t.material.opacity <= 0) { this.scene.remove(t); return false; } return true; });
+
+        // HUD & Audio
+        document.getElementById('hud-speed').innerText = displaySpeed;
+        if(AudioEngineInstance) AudioEngineInstance.update(speedMps, nitro);
+
+        // Light Speed VFX
+        if(nitro && displaySpeed > 800) {
+            if(!this.isLightSpeed) {
+                this.isLightSpeed = true;
+                if(AudioEngineInstance) AudioEngineInstance.boom();
+                document.getElementById('warp-overlay').style.opacity = 1;
+            }
+            this.camera.fov = THREE.MathUtils.lerp(this.camera.fov, 140, 0.1);
+            this.starMesh.material.opacity = 1;
+            this.starMesh.position.copy(this.carMesh.position);
+            const pts = this.starGeo.attributes.position.array;
+            for(let i=2; i<pts.length; i+=3) { pts += 100; if(pts > 500) pts = -500; }
+            this.starGeo.attributes.position.needsUpdate = true;
+        } else {
+            if(this.isLightSpeed) { this.isLightSpeed = false; document.getElementById('warp-overlay').style.opacity = 0; }
+            this.camera.fov = THREE.MathUtils.lerp(this.camera.fov, 60, 0.1);
+            this.starMesh.material.opacity = 0;
+        }
+        this.camera.updateProjectionMatrix();
+
+        // Speed Cap
+        if(speedMps > 800) vel.scale(800/speedMps, vel);
+    }
+
+    updateEnvironment() {
+        const pz = this.chassisBody.position.z;
+        const dummy = new THREE.Object3D();
+        
+        // Treadmill Scenery
+        for(let i=0; i<this.sceneryCount; i++) {
+            let data = this.sceneryData[i];
+            if(data.z > pz + 100) { data.z = pz - 3000; } // move ahead
+            dummy.position.set(data.x, 0, data.z);
+            dummy.scale.set(1, data.sy, 1);
+            dummy.updateMatrix();
+            this.instMesh.setMatrixAt(i, dummy.matrix);
+        }
+        this.instMesh.instanceMatrix.needsUpdate = true;
+
+        // Traffic AI
+        if(Config.traffic === 'on') {
+            this.traffic.forEach(t => {
+                t.body.position.z -= t.speed * (1/60);
+                if(t.body.position.z > pz + 50) {
+                    t.body.position.z = pz - 1000 - Math.random()*1000;
+                    t.body.position.x = (Math.random()-0.5)*20;
+                }
+                t.mesh.position.copy(t.body.position);
+                t.mesh.quaternion.copy(t.body.quaternion);
+            });
+        }
+    }
+
+    render() {
+        requestAnimationFrame(() => this.render());
+        
+        const dt = 1/60;
+        this.world.step(dt, this.clock.getDelta(), 3);
+        
+        this.updateControls();
+        this.updateEnvironment();
+
+        // Sync visual meshes
+        this.carMesh.position.copy(this.chassisBody.position);
+        this.carMesh.quaternion.copy(this.chassisBody.quaternion);
+        
+        if(Config.vehicle !== 'ship') {
+            for(let i=0; i<this.vehicle.wheelInfos.length; i++) {
+                this.vehicle.updateWheelTransform(i);
+                const t = this.vehicle.wheelInfos.worldTransform;
+                this.wheelMeshes[i].position.copy(t.position);
+                this.wheelMeshes[i].quaternion.copy(t.quaternion);
+            }
+        }
+
+        // Camera chase
+        const offset = new THREE.Vector3(0, 3 + (Input.nitro?2:0), 8 + (Input.nitro?4:0)).applyMatrix4(this.carMesh.matrixWorld);
+        this.camera.position.lerp(offset, 0.2);
+        this.camera.lookAt(this.carMesh.position.clone().add(new THREE.Vector3(0,1,0)));
+
+        this.composer.render();
+    }
+}
+
+// ==========================================
+// INPUTS & LIFECYCLE
+// ==========================================
+function bindTouch(id, prop) {
+    const el = document.getElementById(id);
+    const set = (v) => (e) => { e.preventDefault(); Input[prop] = v; };
+    el.addEventListener('touchstart', set(true));
+    el.addEventListener('touchend', set(false));
+    el.addEventListener('touchcancel', set(false));
+}
+
+function initInputs() {
+    window.addEventListener('keydown', e => { Input[e.key.toLowerCase()] = true; });
+    window.addEventListener('keyup', e => { Input[e.key.toLowerCase()] = false; });
+    
+    bindTouch('btn-gas', 'gas');
+    bindTouch('btn-brake', 'brake');
+    bindTouch('btn-nitro', 'nitro');
+
+    const joy = document.getElementById('joystick');
+    const knob = document.getElementById('joystick-knob');
+    let jRect, jActive = false;
+
+    const moveJoy = (e) => {
+        if(!jActive) return;
+        e.preventDefault();
+        let touch = e.touches[0];
+        let x = touch.clientX - jRect.left - jRect.width/2;
+        let y = touch.clientY - jRect.top - jRect.height/2;
+        const max = jRect.width/2 - 25;
+        const dist = Math.sqrt(x*x + y*y);
+        if(dist > max) { x = (x/dist)*max; y = (y/dist)*max; }
+        knob.style.transform = `translate(calc(-50% + ${x}px), calc(-50% + ${y}px))`;
+        Input.steer = x / max;
+    };
+
+    joy.addEventListener('touchstart', (e) => { jActive = true; jRect = joy.getBoundingClientRect(); moveJoy(e); });
+    joy.addEventListener('touchmove', moveJoy);
+    const endJoy = () => { jActive = false; knob.style.transform = `translate(-50%, -50%)`; Input.steer = 0; };
+    joy.addEventListener('touchend', endJoy); joy.addEventListener('touchcancel', endJoy);
+}
+
+document.getElementById('btn-start').addEventListener('click', () => {
+    Config.time = document.getElementById('opt-time').value;
+    Config.world = document.getElementById('opt-world').value;
+    Config.vehicle = document.getElementById('opt-vehicle').value;
+    Config.traffic = document.getElementById('opt-traffic').value;
+
+    document.getElementById('start-screen').style.display = 'none';
+    
+    if(document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(()=>{});
+    if(screen.orientation && screen.orientation.lock) screen.orientation.lock('landscape').catch(()=>{});
+
+    AudioEngineInstance = new AudioEngine();
+    
+    initInputs();
+    const game = new Engine();
+    
+    document.getElementById('btn-reset-pos').addEventListener('click', () => game.resetPos());
+    document.getElementById('btn-reset-pos').addEventListener('touchstart', (e) => { e.preventDefault(); game.resetPos(); });
+
+    game.render();
+});
+
+</script>
+</body>
+</html>

@@ -1,0 +1,642 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>MonstaBots 1: The Beginning</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Black+Ops+One&family=Roboto:wght@700&display=swap');
+        
+        * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; -webkit-user-select: none; touch-action: none; }
+        body, html { width: 100vw; height: 100vh; overflow: hidden; background: #87CEEB; font-family: 'Roboto', sans-serif; }
+
+        #game-canvas { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 1; }
+
+        /* --- UI OVERLAYS --- */
+        .overlay { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 100; background: rgba(255, 255, 255, 0.9); text-align: center; padding: 20px; }
+        h1 { font-family: 'Black Ops One', cursive; font-size: max(40px, 6vw); color: #ff4500; text-transform: uppercase; text-shadow: 2px 2px 0 #000; margin-bottom: 20px; }
+        p.story { font-size: max(16px, 1.5vw); color: #333; max-width: 800px; line-height: 1.5; margin-bottom: 30px; font-weight: bold; }
+        button.btn-main { padding: 15px 40px; font-size: 24px; font-family: 'Black Ops One', cursive; background: #ff4500; color: #fff; border: 4px solid #000; cursor: pointer; text-transform: uppercase; box-shadow: 4px 4px 0 #000; transition: 0.1s; }
+        button.btn-main:active { transform: translate(4px, 4px); box-shadow: 0 0 0 #000; }
+
+        /* --- HUD --- */
+        #hud { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 10; pointer-events: none; display: none; padding: 20px; }
+        .hud-bar { display: flex; justify-content: space-between; align-items: flex-start; width: 100%; }
+        .hud-box { background: rgba(0, 0, 0, 0.7); border: 3px solid #fff; padding: 10px 20px; color: #fff; font-size: 20px; font-family: 'Black Ops One', cursive; box-shadow: 3px 3px 0 #000; }
+        .text-yellow { color: #ffd700; } .text-red { color: #ff4500; } .text-green { color: #00ff00; }
+
+        /* Crosshair */
+        #crosshair { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 20px; height: 20px; border: 3px solid #fff; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 5px rgba(0,0,0,0.5); }
+        #crosshair::after { content: ''; width: 4px; height: 4px; background: #ff0000; border-radius: 50%; }
+
+        /* Dynamic Popups */
+        #announce-text { position: absolute; top: 30%; left: 50%; transform: translate(-50%, -50%) scale(0.5); font-family: 'Black Ops One', cursive; font-size: max(40px, 4vw); color: #ffeb3b; text-shadow: 3px 3px 0 #000, 0 0 20px #ff9800; opacity: 0; transition: 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275); pointer-events: none; }
+        #wave-banner { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-family: 'Black Ops One', cursive; font-size: max(60px, 6vw); color: #fff; background: rgba(0,0,0,0.8); padding: 20px 50px; border: 5px solid #ff4500; opacity: 0; pointer-events: none; transition: 0.5s; display: none; }
+        #damage-flash { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #ff0000; opacity: 0; pointer-events: none; transition: 0.1s; }
+
+        /* Mobile Controls */
+        #mobile-ui { position: absolute; bottom: 0; left: 0; width: 100vw; height: 50vh; z-index: 20; display: none; pointer-events: none; }
+        .touch-area { position: absolute; top: 0; height: 100%; pointer-events: auto; }
+        #touch-left { left: 0; width: 40%; } #touch-right { right: 0; width: 60%; }
+        
+        .mobile-btn { position: absolute; background: rgba(255, 255, 255, 0.5); border: 3px solid #000; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-family: 'Black Ops One'; font-size: 16px; color: #000; pointer-events: auto; font-weight: bold; }
+        .mobile-btn:active { background: rgba(255, 69, 0, 0.8); color: white; }
+        #btn-fire { bottom: 20px; right: 20px; width: 80px; height: 80px; background: rgba(255, 69, 0, 0.5); }
+        #btn-jump { bottom: 20px; right: 120px; width: 60px; height: 60px; }
+        #btn-wep { bottom: 100px; right: 20px; width: 60px; height: 60px; }
+
+        .joystick-base { position: absolute; bottom: 30px; left: 30px; width: 100px; height: 100px; background: rgba(255,255,255,0.3); border: 2px solid #000; border-radius: 50%; display: none; }
+        .joystick-knob { position: absolute; top: 50%; left: 50%; width: 40px; height: 40px; background: #333; border-radius: 50%; transform: translate(-50%, -50%); }
+
+        @media (orientation: portrait) { #portrait-warn { display: flex !important; } }
+        #portrait-warn { display: none; position: absolute; top:0; left:0; width:100%; height:100%; background:#ff4500; color:#fff; z-index:999; align-items:center; justify-content:center; font-size:30px; text-align:center; font-family:'Black Ops One'; padding: 20px; }
+    </style>
+</head>
+<body>
+
+    <div id="portrait-warn">ROTATE DEVICE TO LANDSCAPE<br>TO SAVE THE WORLD</div>
+
+    <!-- Intro Story -->
+    <div id="intro-screen" class="overlay">
+        <h1>MONSTABOTS 1: THE BEGINNING</h1>
+        <p class="story">
+            YEAR 2042.<br><br>
+            The global robotic helpers, known as 'MonstaBots', received a corrupted software update. Now, they are trying to "clean" humanity off the face of the Earth. <br><br>
+            You are the last janitor at the top-secret experimental weapons lab. It's time to take out the trash. Survive 5 Waves.
+        </p>
+        <button class="btn-main" id="start-btn">GRAB A MOP (AND 10 GUNS)</button>
+        <p style="margin-top:20px; font-size:14px;">PC: WASD to Move, Space to Jump, Mouse to Aim/Shoot, Scroll/Numbers for Weapons.<br>Mobile: On-screen Controls.</p>
+    </div>
+
+    <!-- Victory Screen -->
+    <div id="outro-screen" class="overlay" style="display:none;">
+        <h1>VICTORY!</h1>
+        <p class="story">
+            WAVE 5 CLEARED.<br><br>
+            The MonstaBots have been reduced to scrap metal. Humanity is safe... for now. <br>
+            You finally get to take your lunch break. You definitely deserve a raise.<br><br>
+            <i>To be continued in MonstaBots 2...</i>
+        </p>
+        <button class="btn-main" onclick="location.reload()">PLAY AGAIN</button>
+    </div>
+
+    <canvas id="game-canvas"></canvas>
+    <div id="damage-flash"></div>
+
+    <div id="hud">
+        <div class="hud-bar">
+            <div class="hud-box">HP: <span id="hp-text" class="text-green">200</span></div>
+            <div class="hud-box" style="text-align:center;">
+                WAVE: <span id="wave-text" class="text-yellow">1</span><br>
+                <span style="font-size:12px;">REMAINING: <span id="rem-text">0</span></span>
+            </div>
+            <div class="hud-box">
+                WEAPON: <span id="wep-name" class="text-red">BLASTER</span><br>
+                <span style="font-size:12px;">AMMO: INFINITE</span>
+            </div>
+        </div>
+        <div id="crosshair"></div>
+        <div id="announce-text">DOUBLE KILL</div>
+        <div id="wave-banner">WAVE 1<br><span style="font-size:30px;">THE GRUNTS</span></div>
+    </div>
+
+    <div id="mobile-ui">
+        <div class="touch-area" id="touch-left">
+            <div class="joystick-base" id="joystick"><div class="joystick-knob" id="knob"></div></div>
+        </div>
+        <div class="touch-area" id="touch-right"></div>
+        <div class="mobile-btn" id="btn-fire">FIRE</div>
+        <div class="mobile-btn" id="btn-jump">JUMP</div>
+        <div class="mobile-btn" id="btn-wep">SWAP</div>
+    </div>
+
+<script>
+// ==========================================
+// MONSTABOTS ENGINE - FULL DAYLIGHT PHYSICS FPS
+// ==========================================
+
+const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
+// --- SYNTHESIZED AUDIO & HUMOR ---
+const AudioSys = {
+    ctx: null,
+    init: function() { this.ctx = new (window.AudioContext || window.webkitAudioContext)(); },
+    play: function(freq, type, dur, vol) {
+        if(!this.ctx) return;
+        let osc = this.ctx.createOscillator(), gain = this.ctx.createGain();
+        osc.type = type; osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(10, this.ctx.currentTime + dur);
+        gain.gain.setValueAtTime(vol, this.ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + dur);
+        osc.connect(gain); gain.connect(this.ctx.destination);
+        osc.start(); osc.stop(this.ctx.currentTime + dur);
+    },
+    noise: function(dur, vol) {
+        if(!this.ctx) return;
+        let buf = this.ctx.createBuffer(1, this.ctx.sampleRate * dur, this.ctx.sampleRate);
+        let data = buf.getChannelData(0);
+        for(let i=0; i<data.length; i++) data[i] = Math.random() * 2 - 1;
+        let src = this.ctx.createBufferSource(); src.buffer = buf;
+        let gain = this.ctx.createGain(); gain.gain.setValueAtTime(vol, this.ctx.currentTime); gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + dur);
+        src.connect(gain); gain.connect(this.ctx.destination); src.start();
+    },
+    voiceJokes: [
+        "Tell my motherboard I love her!", "Ouch, my pixels!", "I'm too young to rust!", "Ctrl Alt Delete me!", 
+        "Does not compute!", "I need a reboot!", "My warranty just expired!", "Error 404: Limbs not found!"
+    ],
+    announcer: function(txt) {
+        if(!window.speechSynthesis) return;
+        let u = new SpeechSynthesisUtterance(txt);
+        u.pitch = 0.8; u.rate = 1.2; u.volume = 1.0;
+        speechSynthesis.speak(u);
+    },
+    botJoke: function() {
+        if(Math.random() > 0.3 || !window.speechSynthesis) return;
+        let u = new SpeechSynthesisUtterance(this.voiceJokes[Math.floor(Math.random() * this.voiceJokes.length)]);
+        u.pitch = 1.5 + Math.random(); u.rate = 1.5; u.volume = 0.6;
+        speechSynthesis.speak(u);
+    }
+};
+
+// --- GAME STATE & WAVE SYSTEM ---
+const Game = {
+    active: false, hp: 20000000000, wave: 1, wepIdx: 0,
+    botsToSpawn: 10, botsAlive: 0, botsKilledThisWave: 0, totalWaveBots: 10,
+    multikill: 0, mkTimer: 0,
+    
+    waves: [
+        { name: "THE GRUNTS", count: 10, hp: 50, speed: 10, sky: 0x87CEEB, ground: 0x7cfc00, botColor: 0xffaa00 },
+        { name: "DESERT STORM", count: 20, hp: 100, speed: 15, sky: 0xffe4b5, ground: 0xedc9af, botColor: 0x8b4513 },
+        { name: "URBAN RUSH", count: 30, hp: 150, speed: 18, sky: 0xb0c4de, ground: 0x808080, botColor: 0x444444 },
+        { name: "CRIMSON THREAT", count: 40, hp: 250, speed: 20, sky: 0xff7f50, ground: 0x8b0000, botColor: 0xff0000 },
+        { name: "MONSTABOT PRIME", count: 50, hp: 400, speed: 25, sky: 0x708090, ground: 0x2f4f4f, botColor: 0x000000 }
+    ]
+};
+
+// --- THREE.JS HIGH-VISIBILITY DAYTIME SETUP ---
+const canvas = document.getElementById('game-canvas');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(window.devicePixelRatio);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.outputEncoding = THREE.sRGBEncoding;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(Game.waves[0].sky);
+scene.fog = new THREE.FogExp2(Game.waves[0].sky, 0.005);
+
+const camera = new THREE.PerspectiveCamera(80, window.innerWidth/window.innerHeight, 0.1, 1000);
+const camPitch = new THREE.Object3D(); const camYaw = new THREE.Object3D();
+camYaw.add(camPitch); camPitch.add(camera); scene.add(camYaw);
+camYaw.position.set(0, 5, 0);
+
+// Lighting (Bright Daylight)
+const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 0.6); scene.add(hemiLight);
+const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
+dirLight.position.set(100, 200, 50); dirLight.castShadow = true;
+dirLight.shadow.camera.left = -100; dirLight.shadow.camera.right = 100;
+dirLight.shadow.camera.top = 100; dirLight.shadow.camera.bottom = -100;
+scene.add(dirLight);
+
+// Environment
+const floorMat = new THREE.MeshLambertMaterial({ color: Game.waves[0].ground });
+const floor = new THREE.Mesh(new THREE.PlaneGeometry(500, 500), floorMat);
+floor.rotation.x = -Math.PI/2; floor.receiveShadow = true; scene.add(floor);
+
+// Simple Props (Blocks)
+const props = [];
+const boxGeo = new THREE.BoxGeometry(1,1,1);
+const boxMat = new THREE.MeshLambertMaterial({ color: 0xdddddd });
+for(let i=0; i<40; i++) {
+    let mesh = new THREE.Mesh(boxGeo, boxMat);
+    let s = Math.random()*5+2; mesh.scale.set(s, s*2, s);
+    mesh.position.set((Math.random()-0.5)*200, s, (Math.random()-0.5)*200);
+    mesh.castShadow = true; mesh.receiveShadow = true; scene.add(mesh);
+    props.push(new THREE.Box3().setFromObject(mesh));
+}
+
+// --- VFX ENGINE ---
+const particles = [];
+function createExplosion(pos, color, size, count) {
+    AudioSys.noise(0.5, 0.5);
+    let mat = new THREE.MeshBasicMaterial({ color: color });
+    for(let i=0; i<count; i++) {
+        let p = new THREE.Mesh(new THREE.BoxGeometry(size,size,size), mat);
+        p.position.copy(pos); scene.add(p);
+        particles.push({ mesh: p, life: 1.0, vel: new THREE.Vector3((Math.random()-0.5)*20, Math.random()*20, (Math.random()-0.5)*20) });
+    }
+}
+function createTrail(start, end, color, width=2) {
+    let mat = new THREE.LineBasicMaterial({ color: color, linewidth: width });
+    let geo = new THREE.BufferGeometry().setFromPoints([start, end]);
+    let line = new THREE.Line(geo, mat); scene.add(line);
+    particles.push({ mesh: line, life: 0.2, isLine: true }); // Fade out quick
+}
+
+// --- WEAPONS SYSTEM (10 Weapons) ---
+const projectiles = [];
+const Weapons = [
+    { name: "1. BLASTER", fireRate: 0.2, fire: (orig, dir) => {
+        AudioSys.play(600, 'square', 0.1, 0.3); hitScan(orig, dir, 25, 0xffff00);
+    }},
+    { name: "2. SHOTGUN", fireRate: 0.8, fire: (orig, dir) => {
+        AudioSys.noise(0.3, 0.8);
+        for(let i=0; i<6; i++) {
+            let spread = dir.clone().add(new THREE.Vector3((Math.random()-0.5)*0.1, (Math.random()-0.5)*0.1, 0)).normalize();
+            hitScan(orig, spread, 20, 0xffaa00);
+        }
+    }},
+    { name: "3. ASSAULT RIFLE", fireRate: 0.1, fire: (orig, dir) => {
+        AudioSys.play(300, 'sawtooth', 0.05, 0.2);
+        let spread = dir.clone().add(new THREE.Vector3((Math.random()-0.5)*0.02, (Math.random()-0.5)*0.02, 0)).normalize();
+        hitScan(orig, spread, 15, 0xffffff);
+    }},
+    { name: "4. SNIPER", fireRate: 1.5, fire: (orig, dir) => {
+        AudioSys.play(150, 'square', 0.5, 0.8); camPitch.rotation.x += 0.1;
+        hitScan(orig, dir, 200, 0xff0000, true);
+    }},
+    { name: "5. GRENADE LAUNCHER", fireRate: 1.0, fire: (orig, dir) => {
+        AudioSys.play(400, 'triangle', 0.2, 0.5);
+        spawnProjectile(orig, dir.multiplyScalar(30).add(new THREE.Vector3(0,10,0)), 0x00ff00, 2, 'bounce', 100);
+    }},
+    { name: "6. ROCKET LAUNCHER", fireRate: 1.2, fire: (orig, dir) => {
+        AudioSys.noise(0.5, 1.0);
+        spawnProjectile(orig, dir.multiplyScalar(50), 0xff4500, 2, 'explode', 200);
+    }},
+    { name: "7. PLASMA CANNON", fireRate: 0.5, fire: (orig, dir) => {
+        AudioSys.play(800, 'sine', 0.2, 0.5);
+        spawnProjectile(orig, dir.multiplyScalar(40), 0x00ffff, 3, 'plasma', 50);
+    }},
+    { name: "8. LASER BEAM", fireRate: 0.05, fire: (orig, dir) => {
+        AudioSys.play(1200, 'sawtooth', 0.05, 0.1);
+        hitScan(orig, dir, 5, 0xff00ff, false, true);
+    }},
+    { name: "9. GRAVITY GUN", fireRate: 2.0, fire: (orig, dir) => {
+        AudioSys.play(50, 'sine', 1.0, 1.0);
+        spawnProjectile(orig, dir.multiplyScalar(20), 0x8a2be2, 4, 'blackhole', 0);
+    }},
+    { name: "10. ORBITAL STRIKE", fireRate: 3.0, fire: (orig, dir) => {
+        AudioSys.announcer("Orbital Strike Initiated");
+        let rc = new THREE.Raycaster(orig, dir);
+        let hits = rc.intersectObject(floor);
+        if(hits.length > 0) {
+            let target = hits[0].point;
+            createTrail(target.clone().setY(100), target, 0xff0000, 10);
+            setTimeout(() => {
+                createExplosion(target, 0xff4500, 10, 50);
+                bots.forEach(b => { if(!b.dead && b.root.position.distanceTo(target) < 30) b.takeDmg(1000, new THREE.Vector3(0,1,0)); });
+            }, 500);
+        }
+    }}
+];
+
+function hitScan(orig, dir, dmg, color, pierce=false, isLaser=false) {
+    let rc = new THREE.Raycaster(orig, dir);
+    let targets = []; bots.forEach(b => { if(!b.dead) targets.push(...b.root.children); });
+    let hits = rc.intersectObjects([...targets, floor, ...props.map(p=>new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshBasicMaterial()))]); // simplified map collision
+    
+    let hitP = orig.clone().add(dir.clone().multiplyScalar(100));
+    
+    if(hits.length > 0) {
+        hitP = hits[0].point;
+        if(hits[0].object.userData.bot) {
+            hits[0].object.userData.bot.takeDmg(dmg, dir);
+            createExplosion(hitP, 0xff0000, 0.2, 5); // Blood/Sparks
+        } else {
+            createExplosion(hitP, 0x888888, 0.2, 5); // Dust
+        }
+    }
+    createTrail(orig.clone().setY(orig.y-0.5), hitP, color, isLaser ? 5 : 2);
+}
+
+function spawnProjectile(pos, vel, color, size, type, dmg) {
+    let mesh = new THREE.Mesh(new THREE.SphereGeometry(size/2, 8, 8), new THREE.MeshLambertMaterial({color:color}));
+    mesh.position.copy(pos); scene.add(mesh);
+    projectiles.push({ mesh, vel, life: 3.0, type, dmg });
+}
+
+// --- COMICAL MONSTABOTS (Capsule + Sphere + Cylinders) ---
+class Bot {
+    constructor() {
+        this.dead = false;
+        let wData = Game.waves[Game.wave-1];
+        this.hp = wData.hp; this.speed = wData.speed;
+        
+        this.mat = new THREE.MeshLambertMaterial({ color: wData.botColor });
+        this.root = new THREE.Group();
+        
+        this.torso = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 3, 8), this.mat); this.torso.position.y = 1.5; this.root.add(this.torso);
+        this.head = new THREE.Mesh(new THREE.SphereGeometry(0.8, 8, 8), this.mat); this.head.position.y = 3.5; this.root.add(this.head);
+        
+        let limbG = new THREE.CylinderGeometry(0.3, 0.3, 2, 8);
+        this.armL = new THREE.Mesh(limbG, this.mat); this.armL.position.set(-1.5, 2, 0); this.root.add(this.armL);
+        this.armR = new THREE.Mesh(limbG, this.mat); this.armR.position.set(1.5, 2, 0); this.root.add(this.armR);
+        this.legL = new THREE.Mesh(limbG, this.mat); this.legL.position.set(-0.5, 0, 0); this.root.add(this.legL);
+        this.legR = new THREE.Mesh(limbG, this.mat); this.legR.position.set(0.5, 0, 0); this.root.add(this.legR);
+
+        this.root.position.set((Math.random()-0.5)*150, 1, (Math.random()-0.5)*150);
+        this.root.traverse(c => { if(c.isMesh) { c.castShadow=true; c.userData={bot:this}; } });
+        scene.add(this.root);
+
+        this.animTime = Math.random()*10; this.shootTimer = Math.random()*3;
+        this.parts = [this.torso, this.head, this.armL, this.armR, this.legL, this.legR];
+        this.ragdolls = [];
+    }
+
+    update(dt) {
+        if(this.dead) {
+            this.ragdolls.forEach(p => {
+                p.vel.y -= 30 * dt; p.mesh.position.addScaledVector(p.vel, dt);
+                p.mesh.rotation.x += p.rot.x*dt; p.mesh.rotation.y += p.rot.y*dt;
+                if(p.mesh.position.y < 0.5) { p.mesh.position.y = 0.5; p.vel.y *= -0.5; }
+            });
+            return;
+        }
+
+        let dist = this.root.position.distanceTo(camYaw.position);
+        this.root.lookAt(camYaw.position.x, this.root.position.y, camYaw.position.z);
+
+        // Move
+        if(dist > 5) {
+            this.root.translateZ(this.speed * dt);
+            this.animTime += dt * 15;
+            this.legL.rotation.x = Math.sin(this.animTime)*1;
+            this.legR.rotation.x = Math.sin(this.animTime+Math.PI)*1;
+            this.armL.rotation.x = Math.sin(this.animTime+Math.PI)*1;
+            this.armR.rotation.x = Math.sin(this.animTime)*1;
+        }
+
+        // Attack
+        if(dist < 50) {
+            this.shootTimer -= dt;
+            if(this.shootTimer <= 0) {
+                this.shootTimer = 2.0;
+                createTrail(this.armR.getWorldPosition(new THREE.Vector3()), camYaw.position, 0xffff00);
+                if(Math.random() > 0.4) {
+                    Game.hp -= 10; document.getElementById('hp-text').innerText = Game.hp;
+                    let f = document.getElementById('damage-flash'); f.style.opacity=0.5; setTimeout(()=>f.style.opacity=0, 100);
+                    if(Game.hp <= 0) { alert("YOU WERE CLEANED UP. GAME OVER."); location.reload(); }
+                }
+            }
+        }
+    }
+
+    takeDmg(amt, dir) {
+        if(this.dead) return;
+        this.hp -= amt;
+        // Flash white
+        this.mat.emissive.setHex(0x555555); setTimeout(()=>this.mat.emissive.setHex(0x000000), 100);
+        
+        if(this.hp <= 0) {
+            this.dead = true; Game.botsAlive--; Game.botsKilledThisWave++;
+            document.getElementById('rem-text').innerText = Game.totalWaveBots - Game.botsKilledThisWave;
+            AudioSys.botJoke();
+            
+            // Killstreak
+            Game.multikill++; Game.mkTimer = 3.0;
+            let txt = ["", "", "DOUBLE KILL", "TRIPLE KILL", "OVERKILL", "ULTRA KILL", "MONSTER KILL!"][Math.min(Game.multikill, 6)];
+            if(txt) {
+                let a = document.getElementById('announce-text'); a.innerText = txt;
+                a.style.opacity = 1; a.style.transform = "translate(-50%,-50%) scale(1)";
+                AudioSys.announcer(txt);
+                setTimeout(() => { a.style.opacity = 0; a.style.transform = "translate(-50%,-50%) scale(0.5)"; }, 1500);
+            }
+
+            // Ragdoll
+            this.parts.forEach(p => {
+                let wp = p.getWorldPosition(new THREE.Vector3());
+                let wq = p.getWorldQuaternion(new THREE.Quaternion());
+                scene.add(p); p.position.copy(wp); p.quaternion.copy(wq);
+                this.ragdolls.push({ mesh: p, vel: dir.clone().multiplyScalar(30).add(new THREE.Vector3((Math.random()-0.5)*10, 20, (Math.random()-0.5)*10)), rot: new THREE.Vector3(Math.random()*10,Math.random()*10,0) });
+            });
+            scene.remove(this.root);
+
+            checkWave();
+        }
+    }
+}
+
+let bots = [];
+function spawnBot() {
+    if(Game.botsToSpawn > 0 && Game.botsAlive < 15) {
+        bots.push(new Bot());
+        Game.botsToSpawn--; Game.botsAlive++;
+    }
+}
+
+function checkWave() {
+    if(Game.botsKilledThisWave >= Game.totalWaveBots) {
+        if(Game.wave === 5) {
+            Game.active = false; document.exitPointerLock?.();
+            document.getElementById('hud').style.display = 'none';
+            document.getElementById('mobile-ui').style.display = 'none';
+            document.getElementById('outro-screen').style.display = 'flex';
+        } else {
+            Game.wave++; startWave();
+        }
+    }
+}
+
+function startWave() {
+    let w = Game.waves[Game.wave-1];
+    Game.botsToSpawn = w.count; Game.totalWaveBots = w.count; Game.botsKilledThisWave = 0; Game.botsAlive = 0;
+    
+    // Update Env
+    scene.background.setHex(w.sky); scene.fog.color.setHex(w.sky);
+    floorMat.color.setHex(w.ground);
+    
+    // UI
+    document.getElementById('wave-text').innerText = Game.wave;
+    document.getElementById('rem-text').innerText = Game.totalWaveBots;
+    let b = document.getElementById('wave-banner');
+    b.innerHTML = `WAVE ${Game.wave}<br><span style="font-size:30px;">${w.name}</span>`;
+    b.style.display = 'block'; setTimeout(()=>b.style.opacity=1, 10);
+    AudioSys.announcer(`Wave ${Game.wave}. ${w.name}`);
+    
+    setTimeout(() => { b.style.opacity=0; setTimeout(()=>b.style.display='none', 500); }, 3000);
+}
+
+// --- PLAYER PHYSICS & CONTROLS ---
+const Player = {
+    height: 4, speed: 25, vel: new THREE.Vector3(), dir: new THREE.Vector3(),
+    update: function(dt) {
+        this.vel.y -= 80 * dt; // grav
+        
+        this.dir.z = Number(Input.w) - Number(Input.s);
+        this.dir.x = Number(Input.d) - Number(Input.a);
+        this.dir.normalize();
+
+        if(this.dir.length() > 0) {
+            let fwd = new THREE.Vector3(0,0,-1).applyQuaternion(camYaw.quaternion).normalize();
+            let rht = new THREE.Vector3(1,0,0).applyQuaternion(camYaw.quaternion).normalize();
+            let mv = fwd.multiplyScalar(this.dir.z).add(rht.multiplyScalar(this.dir.x));
+            this.vel.x = mv.x * this.speed; this.vel.z = mv.z * this.speed;
+        } else {
+            this.vel.x *= 0.8; this.vel.z *= 0.8;
+        }
+
+        camYaw.position.addScaledVector(this.vel, dt);
+
+        if(camYaw.position.y < this.height) {
+            camYaw.position.y = this.height; this.vel.y = 0;
+            if(Input.space) this.vel.y = 35; // Jump
+        }
+
+        // Keep in bounds
+        if(camYaw.position.x > 240) camYaw.position.x = 240; if(camYaw.position.x < -240) camYaw.position.x = -240;
+        if(camYaw.position.z > 240) camYaw.position.z = 240; if(camYaw.position.z < -240) camYaw.position.z = -240;
+    }
+};
+
+let fireCooldown = 0;
+function shoot() {
+    if(fireCooldown > 0) return;
+    let w = Weapons[Game.wepIdx];
+    fireCooldown = w.fireRate;
+    let origin = camYaw.position.clone();
+    let dir = new THREE.Vector3(0,0,-1).applyQuaternion(camera.getWorldQuaternion(new THREE.Quaternion())).normalize();
+    w.fire(origin, dir);
+}
+
+function switchWeapon(dir) {
+    Game.wepIdx += dir;
+    if(Game.wepIdx >= Weapons.length) Game.wepIdx = 0;
+    if(Game.wepIdx < 0) Game.wepIdx = Weapons.length-1;
+    document.getElementById('wep-name').innerText = Weapons[Game.wepIdx].name;
+}
+
+// Input Map
+const Input = { w:false, a:false, s:false, d:false, space:false };
+
+window.addEventListener('keydown', e => {
+    let k = e.key.toLowerCase();
+    if(k==='w') Input.w=true; if(k==='s') Input.s=true; if(k==='a') Input.a=true; if(k==='d') Input.d=true;
+    if(e.code==='Space') Input.space = true;
+    if(!isNaN(parseInt(k)) && k!=='0') { Game.wepIdx = parseInt(k)-1; document.getElementById('wep-name').innerText = Weapons[Game.wepIdx].name; }
+    if(k==='0') { Game.wepIdx = 9; document.getElementById('wep-name').innerText = Weapons[Game.wepIdx].name; }
+});
+window.addEventListener('keyup', e => {
+    let k = e.key.toLowerCase();
+    if(k==='w') Input.w=false; if(k==='s') Input.s=false; if(k==='a') Input.a=false; if(k==='d') Input.d=false;
+    if(e.code==='Space') Input.space = false;
+});
+window.addEventListener('wheel', e => { if(Game.active) switchWeapon(e.deltaY > 0 ? 1 : -1); });
+
+let locked = false;
+document.addEventListener('pointerlockchange', () => locked = !!document.pointerLockElement);
+document.addEventListener('mousemove', e => {
+    if(!locked || !Game.active) return;
+    camYaw.rotation.y -= e.movementX * 0.003;
+    camPitch.rotation.x -= e.movementY * 0.003;
+    camPitch.rotation.x = Math.max(-Math.PI/2, Math.min(Math.PI/2, camPitch.rotation.x));
+});
+document.addEventListener('mousedown', e => {
+    if(!Game.active || isMobile) return;
+    if(!locked) { document.body.requestPointerLock(); return; }
+    if(e.button === 0) shoot();
+});
+
+// Mobile Controls
+if(isMobile) {
+    let lId = null, rId = null, sX=0, sY=0, lRx=0, lRy=0;
+    const joy = document.getElementById('joystick'), knob = document.getElementById('knob');
+    
+    document.getElementById('touch-left').addEventListener('touchstart', e => { e.preventDefault(); let t=e.changedTouches[0]; lId=t.identifier; sX=t.clientX; sY=t.clientY; joy.style.display='block'; joy.style.left=(sX-50)+'px'; joy.style.top=(sY-50)+'px'; knob.style.transform='translate(-50%,-50%)'; });
+    document.getElementById('touch-left').addEventListener('touchmove', e => { e.preventDefault(); for(let t of e.changedTouches){ if(t.identifier===lId){ let dx=t.clientX-sX, dy=t.clientY-sY, d=Math.hypot(dx,dy); if(d>40){dx=(dx/d)*40; dy=(dy/d)*40;} knob.style.transform=`translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`; Input.w=dy<-10; Input.s=dy>10; Input.a=dx<-10; Input.d=dx>10; }}});
+    document.getElementById('touch-left').addEventListener('touchend', e => { e.preventDefault(); for(let t of e.changedTouches) if(t.identifier===lId){ lId=null; joy.style.display='none'; Input.w=Input.s=Input.a=Input.d=false; }});
+
+    document.getElementById('touch-right').addEventListener('touchstart', e => { e.preventDefault(); let t=e.changedTouches[0]; rId=t.identifier; lRx=t.clientX; lRy=t.clientY; });
+    document.getElementById('touch-right').addEventListener('touchmove', e => { e.preventDefault(); for(let t of e.changedTouches){ if(t.identifier===rId){ let dx=t.clientX-lRx, dy=t.clientY-lRy; lRx=t.clientX; lRy=t.clientY; camYaw.rotation.y-=dx*0.005; camPitch.rotation.x-=dy*0.005; camPitch.rotation.x=Math.max(-Math.PI/2,Math.min(Math.PI/2,camPitch.rotation.x)); }}});
+    document.getElementById('touch-right').addEventListener('touchend', e => { e.preventDefault(); for(let t of e.changedTouches) if(t.identifier===rId) rId=null; });
+
+    document.getElementById('btn-fire').addEventListener('touchstart', e=>{e.preventDefault(); shoot();});
+    document.getElementById('btn-jump').addEventListener('touchstart', e=>{e.preventDefault(); Input.space=true;});
+    document.getElementById('btn-jump').addEventListener('touchend', e=>{e.preventDefault(); Input.space=false;});
+    document.getElementById('btn-wep').addEventListener('touchstart', e=>{e.preventDefault(); switchWeapon(1);});
+}
+
+// Start Setup
+document.getElementById('start-btn').addEventListener('click', () => {
+    AudioSys.init();
+    if (document.documentElement.requestFullscreen) { try { document.documentElement.requestFullscreen(); } catch(e){} }
+    document.getElementById('intro-screen').style.display = 'none';
+    document.getElementById('hud').style.display = 'block';
+    if(isMobile) document.getElementById('mobile-ui').style.display = 'block';
+    
+    Game.active = true;
+    startWave();
+    if(!isMobile) document.body.requestPointerLock();
+});
+
+window.addEventListener('resize', () => {
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+});
+
+// --- MAIN LOOP ---
+const clock = new THREE.Clock();
+
+function animate() {
+    requestAnimationFrame(animate);
+    let dt = clock.getDelta(); if(dt > 0.1) dt = 0.1;
+
+    if(Game.active) {
+        if(fireCooldown > 0) fireCooldown -= dt;
+        if(Game.mkTimer > 0) { Game.mkTimer -= dt; if(Game.mkTimer <= 0) Game.multikill = 0; }
+        
+        Player.update(dt);
+        spawnBot();
+        bots.forEach(b => b.update(dt));
+
+        // Update Projectiles
+        for(let i=projectiles.length-1; i>=0; i--) {
+            let p = projectiles[i]; p.life -= dt;
+            p.mesh.position.addScaledVector(p.vel, dt);
+            
+            if(p.type === 'bounce') { p.vel.y -= 40*dt; if(p.mesh.position.y<0.5){ p.mesh.position.y=0.5; p.vel.y*=-0.8; } }
+            
+            if(p.type === 'blackhole') {
+                bots.forEach(b => { if(!b.dead && b.root.position.distanceTo(p.mesh.position) < 40) b.root.position.add(p.mesh.position.clone().sub(b.root.position).normalize().multiplyScalar(20*dt)); });
+            }
+
+            // Hit check
+            let hit = false;
+            bots.forEach(b => {
+                if(!b.dead && b.root.position.distanceTo(p.mesh.position) < 3) {
+                    if(p.type==='explode' || p.type==='bounce' || p.type==='blackhole') hit=true; // trigger aoe
+                    else { b.takeDmg(p.dmg, p.vel.clone().normalize()); p.life=0; } // single target hit
+                }
+            });
+
+            if(p.life <= 0 || hit || p.mesh.position.y < 0) {
+                if(p.type==='explode' || p.type==='bounce' || p.type==='blackhole') {
+                    createExplosion(p.mesh.position, p.mesh.material.color.getHex(), 5, 20);
+                    bots.forEach(b => { if(!b.dead && b.root.position.distanceTo(p.mesh.position) < 20) b.takeDmg(p.dmg, b.root.position.clone().sub(p.mesh.position).normalize()); });
+                }
+                scene.remove(p.mesh); projectiles.splice(i,1);
+            }
+        }
+
+        // Particles
+        for(let i=particles.length-1; i>=0; i--) {
+            let p = particles[i]; p.life -= dt * (p.isLine ? 5 : 2);
+            if(!p.isLine) {
+                p.vel.y -= 20*dt; p.mesh.position.addScaledVector(p.vel, dt);
+                p.mesh.scale.setScalar(p.life);
+            } else {
+                p.mesh.material.opacity = p.life;
+                p.mesh.material.transparent = true;
+            }
+            if(p.life <= 0) { scene.remove(p.mesh); particles.splice(i,1); }
+        }
+    }
+
+    renderer.render(scene, camera);
+}
+animate();
+</script>
+</body>
+</html>

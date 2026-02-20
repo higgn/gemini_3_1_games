@@ -1,0 +1,755 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>INDRA APEX: Next Gen</title>
+    <!-- Three.js CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;700&display=swap');
+        
+        :root { --glass: rgba(10, 15, 30, 0.6); --neon-blue: #00f3ff; --neon-pink: #ff007f; --gold: #ffaa00; }
+        * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; -webkit-user-select: none; font-family: 'Rajdhani', sans-serif; touch-action: none; }
+        body, html { width: 100vw; height: 100vh; overflow: hidden; background: #000; }
+
+        #game-canvas { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 1; }
+        
+        /* --- GTA 6 STYLE LOADING SCREEN --- */
+        #loading-screen { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; background: #050505; z-index: 100; display: flex; flex-direction: column; align-items: center; justify-content: center; overflow: hidden; }
+        .gta-bg { position: absolute; width: 120%; height: 120%; background: radial-gradient(circle at center, #1a0033 0%, #000 80%); opacity: 0.5; animation: panBg 20s infinite alternate ease-in-out; z-index: 101; }
+        @keyframes panBg { 0% { transform: translate(-5%, -5%) scale(1); } 100% { transform: translate(5%, 5%) scale(1.1); } }
+        
+        #intro-content { z-index: 102; text-align: center; display: flex; flex-direction: column; align-items: center; }
+        h1.title { font-size: max(60px, 8vw); color: #fff; text-shadow: 0 0 30px var(--neon-blue), 0 0 60px var(--neon-pink); letter-spacing: 20px; font-weight: 700; margin-bottom: 0; }
+        .subtitle { font-size: 20px; color: #888; letter-spacing: 5px; margin-bottom: 40px; }
+        
+        #btn-init { padding: 15px 50px; font-size: 24px; background: rgba(0,243,255,0.1); border: 2px solid var(--neon-blue); color: var(--neon-blue); cursor: pointer; text-transform: uppercase; letter-spacing: 2px; transition: 0.3s; box-shadow: 0 0 20px inset rgba(0,243,255,0.2); backdrop-filter: blur(10px); }
+        #btn-init:hover { background: var(--neon-blue); color: #000; box-shadow: 0 0 40px var(--neon-blue); }
+        
+        #loading-ui { display: none; flex-direction: column; align-items: center; width: 80%; max-width: 600px; margin-top: 30px; }
+        .progress-container { width: 100%; height: 6px; background: #222; border-radius: 3px; overflow: hidden; box-shadow: 0 0 10px #000; }
+        .progress-bar { width: 0%; height: 100%; background: linear-gradient(90deg, var(--neon-blue), var(--neon-pink)); transition: width 0.1s; }
+        .loading-text { margin-top: 10px; color: var(--neon-blue); font-size: 16px; letter-spacing: 2px; }
+
+        /* --- GAME UI --- */
+        #ui-layer { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 10; pointer-events: none; display: none; padding: 2vh 2vw; flex-direction: column; justify-content: space-between; }
+        
+        /* HUD Top */
+        .hud-top { display: flex; justify-content: space-between; width: 100%; }
+        .glass-panel { background: var(--glass); border: 1px solid rgba(255,255,255,0.1); border-left: 4px solid var(--neon-blue); padding: 10px 20px; color: #fff; font-size: max(18px, 1.5vw); backdrop-filter: blur(10px); border-radius: 4px; box-shadow: 0 5px 15px rgba(0,0,0,0.5); }
+        .hp-text { color: #0f0; text-shadow: 0 0 10px #0f0; }
+        
+        /* Crosshair */
+        #crosshair { position: absolute; top: 50%; left: 50%; width: 30px; height: 30px; transform: translate(-50%, -50%); pointer-events: none; transition: 0.1s; display: flex; justify-content: center; align-items: center; }
+        .ch-dot { width: 4px; height: 4px; background: var(--neon-blue); border-radius: 50%; box-shadow: 0 0 10px var(--neon-blue); }
+        .ch-ring { position: absolute; width: 100%; height: 100%; border: 1px solid rgba(0,243,255,0.5); border-radius: 50%; }
+        
+        /* Bottom HUD (Weapons & Abilities) */
+        .hud-bottom { display: flex; justify-content: space-between; align-items: flex-end; width: 100%; pointer-events: auto; }
+        .weapon-wheel, .ability-wheel { display: flex; gap: 10px; }
+        .hud-icon { width: 50px; height: 50px; background: var(--glass); border: 1px solid rgba(255,255,255,0.2); border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #fff; font-weight: bold; font-size: 20px; cursor: pointer; backdrop-filter: blur(5px); transition: 0.2s; }
+        .hud-icon.active { border-color: var(--neon-blue); box-shadow: 0 0 15px inset var(--neon-blue), 0 0 15px var(--neon-blue); color: var(--neon-blue); }
+        .hud-icon.ability { border-color: var(--gold); }
+        .hud-icon.locked { opacity: 0.3; border-color: #555; color: #555; }
+
+        /* Mobile Virtual Joysticks */
+        #mobile-controls { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 5; display: none; }
+        .touch-zone { position: absolute; top: 10%; height: 80%; width: 50%; pointer-events: auto; }
+        #zone-left { left: 0; } #zone-right { right: 0; }
+        .joystick { position: absolute; width: 120px; height: 120px; border: 2px solid rgba(0,243,255,0.2); border-radius: 50%; display: none; pointer-events: none; transform: translate(-50%, -50%); background: radial-gradient(circle, rgba(0,243,255,0.1), transparent); }
+        .joystick-knob { position: absolute; top: 50%; left: 50%; width: 40px; height: 40px; background: rgba(0,243,255,0.6); border-radius: 50%; transform: translate(-50%, -50%); box-shadow: 0 0 15px var(--neon-blue); }
+        
+        .fire-btn { position: absolute; bottom: 15%; right: 5%; width: 80px; height: 80px; border-radius: 50%; background: rgba(255,0,127,0.2); border: 2px solid var(--neon-pink); color: var(--neon-pink); display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: bold; backdrop-filter: blur(5px); pointer-events: auto; z-index: 20; box-shadow: 0 0 20px var(--neon-pink); }
+        .fire-btn:active { background: rgba(255,0,127,0.6); }
+
+        /* Effects */
+        #nuke-flash { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; background: #fff; opacity: 0; pointer-events: none; z-index: 99; transition: opacity 0.5s; }
+        #damage-flash { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; background: radial-gradient(circle, transparent 40%, rgba(255,0,0,0.6) 100%); opacity: 0; pointer-events: none; z-index: 8; transition: opacity 0.1s; }
+        #killfeed { position: absolute; top: 20%; left: 50%; transform: translateX(-50%); font-size: 30px; font-weight: bold; color: var(--neon-pink); text-shadow: 0 0 20px var(--neon-pink); opacity: 0; pointer-events: none; transition: 0.2s; }
+
+        @media (orientation: portrait) { body::before { content: 'ROTATE DEVICE FOR NEXT GEN EXPEREINCE'; position: absolute; top:0; left:0; width:100%; height:100%; background:#000; color:#fff; display:flex; align-items:center; justify-content:center; z-index:999; font-size:24px; text-align:center; padding:20px; } }
+    </style>
+</head>
+<body>
+
+    <!-- GTA 6 Cinematic Loading -->
+    <div id="loading-screen">
+        <div class="gta-bg"></div>
+        <div id="intro-content">
+            <h1 class="title">INDRA APEX</h1>
+            <div class="subtitle">PHOTOREALISTIC KINETIC ENGINE</div>
+            <button id="btn-init">INITIALIZE ENGINE</button>
+            
+            <div id="loading-ui">
+                <div class="progress-container"><div class="progress-bar" id="load-bar"></div></div>
+                <div class="loading-text" id="load-text">AWAITING COMMAND...</div>
+            </div>
+        </div>
+    </div>
+
+    <canvas id="game-canvas"></canvas>
+    
+    <div id="nuke-flash"></div>
+    <div id="damage-flash"></div>
+
+    <!-- UI Overlay -->
+    <div id="ui-layer">
+        <div class="hud-top">
+            <div class="glass-panel">KILLS: <span id="kill-count" style="color:var(--neon-blue);">0</span></div>
+            <div class="glass-panel">ARMOR: <span id="hp-display" class="hp-text">1000</span></div>
+        </div>
+        
+        <div id="crosshair"><div class="ch-dot"></div><div class="ch-ring"></div></div>
+        <div id="killfeed">TARGET VAPORIZED</div>
+
+        <div class="hud-bottom">
+            <div class="weapon-wheel">
+                <div class="hud-icon active" id="w1">1</div> <!-- Sniper -->
+                <div class="hud-icon" id="w2">2</div> <!-- Plasma -->
+                <div class="hud-icon" id="w3">3</div> <!-- Singularity -->
+                <div class="hud-icon" style="border-color:#0f0; color:#0f0;" id="wG">G</div> <!-- Grenade -->
+            </div>
+            <div class="ability-wheel">
+                <div class="hud-icon ability locked" id="ab1">A</div> <!-- Air Strike (5) -->
+                <div class="hud-icon ability locked" id="ab2">T</div> <!-- Titan (10) -->
+                <div class="hud-icon ability locked" id="ab3">N</div> <!-- Nuke (20) -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Mobile Controls -->
+    <div id="mobile-controls">
+        <div class="touch-zone" id="zone-left"><div class="joystick" id="joy-left"><div class="joystick-knob"></div></div></div>
+        <div class="touch-zone" id="zone-right"></div>
+        <div class="fire-btn" id="btn-fire">FIRE</div>
+    </div>
+
+<script>
+// ==========================================
+// INDRA APEX - CORE ENGINE
+// ==========================================
+const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
+// --- AUDIO SYNTHESIS (Next Gen) ---
+const AudioFX = {
+    ctx: null,
+    init: function() { this.ctx = new (window.AudioContext || window.webkitAudioContext)(); },
+    playTone: function(freq, type, dur, vol, slideFreq) {
+        if(!this.ctx) return;
+        let osc = this.ctx.createOscillator(), gain = this.ctx.createGain();
+        osc.type = type; osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+        if(slideFreq) osc.frequency.exponentialRampToValueAtTime(slideFreq, this.ctx.currentTime + dur);
+        gain.gain.setValueAtTime(vol, this.ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + dur);
+        osc.connect(gain); gain.connect(this.ctx.destination);
+        osc.start(); osc.stop(this.ctx.currentTime + dur);
+    },
+    playNoise: function(dur, vol, isLow=false) {
+        if(!this.ctx) return;
+        let buf = this.ctx.createBuffer(1, this.ctx.sampleRate * dur, this.ctx.sampleRate);
+        let data = buf.getChannelData(0);
+        for(let i=0; i<data.length; i++) data[i] = (Math.random() * 2 - 1) * (isLow ? Math.sin(i*0.1) : 1);
+        let src = this.ctx.createBufferSource(); src.buffer = buf;
+        let gain = this.ctx.createGain();
+        gain.gain.setValueAtTime(vol, this.ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + dur);
+        
+        let filter = this.ctx.createBiquadFilter();
+        filter.type = isLow ? 'lowpass' : 'bandpass'; filter.frequency.value = isLow ? 400 : 1000;
+        
+        src.connect(filter); filter.connect(gain); gain.connect(this.ctx.destination);
+        src.start();
+    },
+    sniper: () => { AudioFX.playNoise(0.5, 1.0); AudioFX.playTone(150, 'square', 0.4, 0.8, 40); },
+    plasma: () => { AudioFX.playTone(600, 'sawtooth', 0.1, 0.3, 200); },
+    singularity: () => { AudioFX.playTone(50, 'sine', 1.5, 1.0, 10); },
+    grenadeLaunch: () => { AudioFX.playTone(300, 'triangle', 0.2, 0.5, 100); },
+    explosion: () => { AudioFX.playNoise(1.0, 1.5, true); AudioFX.playTone(100, 'square', 0.8, 0.8, 20); },
+    nuke: () => { AudioFX.playNoise(4.0, 2.0, true); AudioFX.playTone(40, 'sine', 4.0, 1.5); },
+    hit: () => { AudioFX.playTone(2000, 'sine', 0.05, 0.4); },
+    kill: () => { AudioFX.playTone(150, 'sawtooth', 0.5, 0.5, 50); AudioFX.playTone(800, 'square', 0.2, 0.3); }
+};
+
+// --- GAME STATE ---
+const Game = {
+    active: false, hp: 100000000, maxHp: 1000000, kills: 100,
+    currentWeapon: 1, // 1: Sniper, 2: Plasma, 3: Singularity
+    titanMode: false
+};
+
+// --- THREE.JS HIGH PERFORMANCE SETUP ---
+const canvas = document.getElementById('game-canvas');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: "high-performance" });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.outputEncoding = THREE.sRGBEncoding;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x020205);
+scene.fog = new THREE.FogExp2(0x020205, 0.002);
+
+const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 2000);
+const camPitch = new THREE.Object3D(); const camYaw = new THREE.Object3D();
+camYaw.add(camPitch); camPitch.add(camera); scene.add(camYaw);
+camYaw.position.set(0, 5, 0);
+
+// --- PHOTOREALISTIC ENVIRONMENT (PBR & Instancing) ---
+const ambientLight = new THREE.AmbientLight(0xffffff, 0.3); scene.add(ambientLight);
+const dirLight = new THREE.DirectionalLight(0x00f3ff, 1.5);
+dirLight.position.set(100, 200, 100); dirLight.castShadow = true;
+dirLight.shadow.mapSize.width = 1024; dirLight.shadow.mapSize.height = 1024;
+dirLight.shadow.camera.near = 10; dirLight.shadow.camera.far = 400;
+dirLight.shadow.camera.left = -150; dirLight.shadow.camera.right = 150;
+dirLight.shadow.camera.top = 150; dirLight.shadow.camera.bottom = -150;
+scene.add(dirLight);
+
+const pointLight = new THREE.PointLight(0xff007f, 2, 100);
+pointLight.position.set(-50, 20, -50); scene.add(pointLight);
+
+// Procedural PBR Textures via Canvas
+function createGridTexture() {
+    let c = document.createElement('canvas'); c.width = 512; c.height = 512;
+    let ctx = c.getContext('2d');
+    ctx.fillStyle = '#111'; ctx.fillRect(0,0,512,512);
+    ctx.strokeStyle = '#333'; ctx.lineWidth = 2;
+    for(let i=0; i<512; i+=64) { ctx.beginPath(); ctx.moveTo(i,0); ctx.lineTo(i,512); ctx.stroke(); ctx.beginPath(); ctx.moveTo(0,i); ctx.lineTo(512,i); ctx.stroke(); }
+    let tex = new THREE.CanvasTexture(c); tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.repeat.set(50, 50);
+    return tex;
+}
+
+// Infinite Floor
+const floorMat = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.1, metalness: 0.8, map: createGridTexture() });
+const floor = new THREE.Mesh(new THREE.PlaneGeometry(2000, 2000), floorMat);
+floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; scene.add(floor);
+
+// Procedural City (InstancedMesh for massive scale, 0 lag)
+const buildingGeo = new THREE.BoxGeometry(1, 1, 1);
+const buildingMat = new THREE.MeshPhysicalMaterial({ color: 0x050505, roughness: 0.2, metalness: 0.9, clearcoat: 1.0 });
+const cityCount = 500;
+const cityMesh = new THREE.InstancedMesh(buildingGeo, buildingMat, cityCount);
+cityMesh.castShadow = true; cityMesh.receiveShadow = true;
+const dummy = new THREE.Object3D();
+const buildingAABBs = [];
+
+for(let i=0; i<cityCount; i++) {
+    let w = Math.random()*20+10, h = Math.random()*80+20, d = Math.random()*20+10;
+    let x = (Math.random()-0.5)*1000, z = (Math.random()-0.5)*1000;
+    if(Math.hypot(x, z) < 100) { x += 150; z += 150; } // Keep center clear
+    dummy.position.set(x, h/2, z); dummy.scale.set(w, h, d);
+    dummy.updateMatrix(); cityMesh.setMatrixAt(i, dummy.matrix);
+    
+    // Collision boxes
+    let box = new THREE.Box3().setFromCenterAndSize(new THREE.Vector3(x, h/2, z), new THREE.Vector3(w, h, d));
+    buildingAABBs.push(box);
+}
+scene.add(cityMesh);
+
+// --- ADVANCED ORGANIC HUMANOID (Liquid Metal PBR) ---
+const orgMatRed = new THREE.MeshPhysicalMaterial({ color: 0xff003c, metalness: 1.0, roughness: 0.2, clearcoat: 1.0 });
+const orgMatBlue = new THREE.MeshPhysicalMaterial({ color: 0x00f3ff, metalness: 1.0, roughness: 0.2, clearcoat: 1.0 });
+
+// Sculpting organic shapes
+const headG = new THREE.SphereGeometry(1, 16, 16);
+const torsoG = new THREE.CylinderGeometry(1.5, 1.0, 3, 16); // Tapered waist
+const limbG = new THREE.CylinderGeometry(0.8, 0.4, 3, 16); // Tapered limbs
+const jointG = new THREE.SphereGeometry(0.8, 16, 16); // Hide seams
+
+class OrganicBot {
+    constructor(isRed) {
+        this.isRed = isRed; this.hp = 100; this.dead = false;
+        this.mat = isRed ? orgMatRed : orgMatBlue;
+        
+        this.root = new THREE.Group();
+        let addPart = (geo, y, p) => { let m=new THREE.Mesh(geo, this.mat); m.position.y=y; m.castShadow=true; p.add(m); return m; };
+        
+        this.torso = addPart(torsoG, 0, this.root);
+        this.head = addPart(headG, 2.5, this.torso);
+        
+        // Arm Left
+        this.shoulderL = addPart(jointG, 1.2, this.torso); this.shoulderL.position.x = -1.8;
+        this.armL = addPart(limbG, -1.5, this.shoulderL);
+        // Arm Right
+        this.shoulderR = addPart(jointG, 1.2, this.torso); this.shoulderR.position.x = 1.8;
+        this.armR = addPart(limbG, -1.5, this.shoulderR);
+        // Leg Left
+        this.hipL = addPart(jointG, -1.5, this.torso); this.hipL.position.x = -0.8;
+        this.legL = addPart(limbG, -1.5, this.hipL);
+        // Leg Right
+        this.hipR = addPart(jointG, -1.5, this.torso); this.hipR.position.x = 0.8;
+        this.legR = addPart(limbG, -1.5, this.hipR);
+
+        this.root.position.set((Math.random()-0.5)*300, 4.5, (Math.random()-0.5)*300);
+        this.root.traverse(c => { if(c.isMesh) c.userData = { bot: this, isHead: c===this.head }; });
+        scene.add(this.root);
+
+        this.vel = new THREE.Vector3(); this.animTime = Math.random()*100;
+        this.ragdollParts = []; this.shootTimer = Math.random()*2;
+    }
+
+    update(dt) {
+        if(this.dead) {
+            // Organic Ragdoll
+            this.ragdollParts.forEach(p => {
+                p.vel.y -= 50 * dt; // grav
+                p.mesh.position.addScaledVector(p.vel, dt);
+                p.mesh.rotation.x += p.rot.x * dt; p.mesh.rotation.y += p.rot.y * dt;
+                if(p.mesh.position.y < 0.5) { p.mesh.position.y = 0.5; p.vel.y *= -0.5; p.vel.multiplyScalar(0.8); }
+            });
+            return;
+        }
+
+        let dist = this.root.position.distanceTo(camYaw.position);
+        
+        // Look at player
+        let targetPos = camYaw.position.clone(); targetPos.y = this.root.position.y;
+        this.root.lookAt(targetPos);
+
+        // Movement & IK Animation
+        if(dist > 20) {
+            this.root.translateZ(10 * dt);
+            this.animTime += dt * 15;
+            // Procedural running IK
+            this.hipL.rotation.x = Math.sin(this.animTime) * 1.0;
+            this.hipR.rotation.x = Math.sin(this.animTime + Math.PI) * 1.0;
+            this.shoulderL.rotation.x = Math.sin(this.animTime + Math.PI) * 0.8;
+            this.shoulderR.rotation.x = Math.sin(this.animTime) * 0.8;
+            this.torso.position.y = Math.abs(Math.sin(this.animTime * 2)) * 0.3;
+        } else {
+            this.hipL.rotation.x = this.hipR.rotation.x = this.shoulderL.rotation.x = this.shoulderR.rotation.x = 0;
+        }
+
+        // Titan Mode Crush
+        if(Game.titanMode && dist < 15 && Player.vel.y < -5) {
+            this.die(this.root.position, new THREE.Vector3(0,-1,0), 500);
+            return;
+        }
+
+        // Combat
+        if(this.isRed && dist < 200) {
+            this.shootTimer -= dt;
+            if(this.shootTimer <= 0) {
+                this.shootTimer = 1 + Math.random();
+                createTracer(this.armR.getWorldPosition(new THREE.Vector3()), camYaw.position.clone().add(new THREE.Vector3((Math.random()-0.5)*5, (Math.random()-0.5)*5, 0)), 0xff003c);
+                if(Math.random() > 0.5) {
+                    Game.hp -= 20; document.getElementById('hp-display').innerText = Game.hp;
+                    let f = document.getElementById('damage-flash'); f.style.opacity = 1; setTimeout(()=>f.style.opacity=0, 100);
+                    if(Game.hp <= 0) alert("MORTAL VESSEL DESTROYED. REFRESH TO REBOOT.");
+                }
+            }
+        }
+    }
+
+    die(hitPoint, forceDir, forceMag) {
+        if(this.dead) return; this.dead = true;
+        AudioFX.kill(); Game.kills++; 
+        document.getElementById('kill-count').innerText = Game.kills;
+        showFeed("TARGET VAPORIZED"); checkKillstreaks();
+
+        // Shatter Hierarchy to World space
+        const parts = [this.head, this.torso, this.armL, this.armR, this.legL, this.legR];
+        parts.forEach(p => {
+            let wp = p.getWorldPosition(new THREE.Vector3());
+            let wq = p.getWorldQuaternion(new THREE.Quaternion());
+            scene.add(p); p.position.copy(wp); p.quaternion.copy(wq);
+            
+            let dist = Math.max(1, p.position.distanceTo(hitPoint));
+            let vel = forceDir.clone().multiplyScalar(forceMag / dist).add(new THREE.Vector3((Math.random()-0.5)*10, Math.random()*20+10, (Math.random()-0.5)*10));
+            this.ragdollParts.push({ mesh: p, vel: vel, rot: new THREE.Vector3(Math.random()*5, Math.random()*5, Math.random()*5) });
+        });
+        scene.remove(this.root);
+        createExplosion(hitPoint, this.mat.color.getHex(), 15);
+    }
+}
+
+let bots = [];
+function spawnBots() {
+    for(let i=0; i<20; i++) bots.push(new OrganicBot(true));
+}
+
+// --- PROJECTILES, GRENADES & EFFECTS ---
+const projectiles = [];
+const particles = [];
+const lines = [];
+
+function createTracer(start, end, color) {
+    let mat = new THREE.LineBasicMaterial({ color: color, linewidth: 3 });
+    let geo = new THREE.BufferGeometry().setFromPoints([start, end]);
+    let line = new THREE.Line(geo, mat); scene.add(line);
+    lines.push({ mesh: line, life: 1.0 });
+}
+
+function createExplosion(pos, color, count, size=0.5) {
+    let geo = new THREE.BoxGeometry(size, size, size);
+    let mat = new THREE.MeshBasicMaterial({ color: color });
+    for(let i=0; i<count; i++) {
+        let m = new THREE.Mesh(geo, mat); m.position.copy(pos); scene.add(m);
+        particles.push({ mesh: m, life: 1.0, vel: new THREE.Vector3((Math.random()-0.5)*30, Math.random()*30, (Math.random()-0.5)*30) });
+    }
+}
+
+class Grenade {
+    constructor(pos, vel) {
+        this.mesh = new THREE.Mesh(new THREE.SphereGeometry(0.5, 8, 8), new THREE.MeshStandardMaterial({color:0x0f0, emissive:0x050}));
+        this.mesh.position.copy(pos); scene.add(this.mesh);
+        this.vel = vel; this.life = 2.0;
+        AudioFX.grenadeLaunch();
+    }
+    update(dt) {
+        this.life -= dt;
+        this.vel.y -= 40 * dt; // grav
+        this.mesh.position.addScaledVector(this.vel, dt);
+        if(this.mesh.position.y < 0.5) { this.mesh.position.y = 0.5; this.vel.y *= -0.6; this.vel.multiplyScalar(0.8); }
+        
+        if(this.life <= 0) {
+            AudioFX.explosion();
+            createExplosion(this.mesh.position, 0x00ff00, 50, 1.5);
+            // Radial Physics Blast
+            bots.forEach(b => {
+                if(b.dead) return;
+                let dist = b.root.position.distanceTo(this.mesh.position);
+                if(dist < 30) {
+                    let dir = b.root.position.clone().sub(this.mesh.position).normalize();
+                    b.die(b.root.position, dir, 500);
+                }
+            });
+            scene.remove(this.mesh); return false;
+        }
+        return true;
+    }
+}
+let grenades = [];
+
+class Singularity {
+    constructor(pos, dir) {
+        this.mesh = new THREE.Mesh(new THREE.SphereGeometry(2, 16, 16), new THREE.MeshBasicMaterial({color:0x000}));
+        let glow = new THREE.Mesh(new THREE.SphereGeometry(2.5, 16, 16), new THREE.MeshBasicMaterial({color:0x800080, transparent:true, opacity:0.5}));
+        this.mesh.add(glow);
+        this.mesh.position.copy(pos); scene.add(this.mesh);
+        this.vel = dir.multiplyScalar(30); this.life = 4.0;
+        AudioFX.singularity();
+    }
+    update(dt) {
+        this.life -= dt;
+        this.mesh.position.addScaledVector(this.vel, dt);
+        this.mesh.scale.setScalar(1 + Math.sin(this.life*10)*0.2); // Pulse
+        
+        // Suck bots in
+        bots.forEach(b => {
+            if(b.dead) return;
+            let dist = b.root.position.distanceTo(this.mesh.position);
+            if(dist < 50) {
+                let pull = this.mesh.position.clone().sub(b.root.position).normalize().multiplyScalar(50 * dt);
+                b.root.position.add(pull);
+                if(dist < 3) b.die(b.root.position, new THREE.Vector3(0,1,0), 0); // eaten
+            }
+        });
+
+        if(this.life <= 0) {
+            AudioFX.explosion();
+            createExplosion(this.mesh.position, 0x800080, 100, 2);
+            scene.remove(this.mesh); return false;
+        }
+        return true;
+    }
+}
+let singularities = [];
+
+// --- WEAPONS & ABILITIES ---
+let fireTimer = 0;
+function fire() {
+    if(fireTimer > 0) return;
+    let origin = camYaw.position.clone();
+    let dir = new THREE.Vector3(0,0,-1).applyQuaternion(camera.getWorldQuaternion(new THREE.Quaternion())).normalize();
+
+    if(Game.currentWeapon === 1) { // Sniper
+        fireTimer = 1.0; AudioFX.sniper();
+        camPitch.rotation.x += 0.1; // Recoil
+        let hitP = origin.clone().add(dir.clone().multiplyScalar(500));
+        let rc = new THREE.Raycaster(origin, dir);
+        let targets = []; bots.forEach(b => { if(!b.dead) targets.push(...b.root.children); });
+        let hits = rc.intersectObjects(targets);
+        
+        createTracer(origin.clone().setY(origin.y-0.5), hitP, 0x00f3ff);
+        
+        if(hits.length > 0) {
+            let mesh = hits[0].object; let bot = mesh.userData.bot;
+            AudioFX.hit();
+            let force = Game.titanMode ? 1000 : 300;
+            if(mesh.userData.isHead) { showFeed("HEADSHOT CRITICAL"); force *= 2; }
+            bot.die(hits[0].point, dir, force);
+        }
+    } 
+    else if(Game.currentWeapon === 2) { // Plasma
+        fireTimer = 0.1; AudioFX.plasma();
+        camPitch.rotation.x += 0.02;
+        let p = new THREE.Mesh(new THREE.SphereGeometry(0.3), new THREE.MeshBasicMaterial({color:0xffaa00}));
+        p.position.copy(origin); scene.add(p);
+        projectiles.push({ mesh: p, vel: dir.clone().multiplyScalar(150), life: 2.0 });
+    }
+    else if(Game.currentWeapon === 3) { // Singularity
+        fireTimer = 2.0;
+        singularities.push(new Singularity(origin, dir));
+    }
+}
+
+function throwGrenade() { grenades.push(new Grenade(camYaw.position.clone(), new THREE.Vector3(0,0,-1).applyQuaternion(camera.getWorldQuaternion(new THREE.Quaternion())).multiplyScalar(50).add(new THREE.Vector3(0,20,0)))); }
+
+function checkKillstreaks() {
+    if(Game.kills >= 5) document.getElementById('ab1').classList.remove('locked');
+    if(Game.kills >= 10) document.getElementById('ab2').classList.remove('locked');
+    if(Game.kills >= 20) document.getElementById('ab3').classList.remove('locked');
+}
+
+function callAirSupport() {
+    if(Game.kills < 5) return; showFeed("ORBITAL STRIKE INBOUND"); AudioFX.singularity();
+    for(let i=0; i<20; i++) {
+        setTimeout(() => {
+            let pos = new THREE.Vector3((Math.random()-0.5)*200, 200, (Math.random()-0.5)*200);
+            createTracer(pos, pos.clone().setY(0), 0xff007f);
+            setTimeout(() => {
+                AudioFX.explosion(); createExplosion(pos.setY(0), 0xff007f, 30, 2);
+                bots.forEach(b => { if(!b.dead && b.root.position.distanceTo(pos) < 40) b.die(b.root.position, new THREE.Vector3(0,1,0), 400); });
+            }, 200);
+        }, i * 200);
+    }
+}
+
+function activateTitan() {
+    if(Game.kills < 10 || Game.titanMode) return;
+    Game.titanMode = true; showFeed("TITAN PROTOCOL ENGAGED"); AudioFX.nuke();
+    Player.height = 40; Player.speed = 120; // 10x scale
+    camYaw.position.y = Player.height;
+    document.getElementById('ui-layer').style.boxShadow = "inset 0 0 100px rgba(255,170,0,0.5)";
+}
+
+function activateNuke() {
+    if(Game.kills < 20) return; showFeed("TACTICAL NUKE DEPLOYED"); AudioFX.nuke();
+    let flash = document.getElementById('nuke-flash'); flash.style.opacity = 1;
+    setTimeout(() => {
+        bots.forEach(b => { if(!b.dead) b.die(b.root.position, new THREE.Vector3(0,1,0), 1000); });
+        flash.style.opacity = 0;
+    }, 1000);
+}
+
+function switchWep(n) {
+    Game.currentWeapon = n;
+    [1,2,3].forEach(i => document.getElementById('w'+i).classList.remove('active'));
+    document.getElementById('w'+n).classList.add('active');
+}
+
+function showFeed(txt) {
+    let el = document.getElementById('killfeed'); el.innerText = txt;
+    el.style.opacity = 1; el.style.transform = "translateX(-50%) scale(1.2)";
+    setTimeout(() => { el.style.transform = "translateX(-50%) scale(1)"; }, 100);
+    setTimeout(() => { el.style.opacity = 0; }, 2000);
+}
+
+// --- PLAYER PHYSICS ---
+const Player = {
+    height: 5, speed: 50, vel: new THREE.Vector3(), dir: new THREE.Vector3(),
+    update: function(dt) {
+        this.vel.y -= (Game.titanMode ? 300 : 120) * dt; // grav
+
+        this.dir.z = Number(Input.w) - Number(Input.s);
+        this.dir.x = Number(Input.d) - Number(Input.a);
+        this.dir.normalize();
+
+        if(this.dir.length() > 0) {
+            let fwd = new THREE.Vector3(0,0,-1).applyQuaternion(camYaw.quaternion).normalize();
+            let rht = new THREE.Vector3(1,0,0).applyQuaternion(camYaw.quaternion).normalize();
+            let mv = fwd.multiplyScalar(this.dir.z).add(rht.multiplyScalar(this.dir.x));
+            this.vel.x = mv.x * this.speed; this.vel.z = mv.z * this.speed;
+            
+            // Titan Footsteps
+            if(Game.titanMode && camYaw.position.y <= this.height + 1) {
+                camPitch.rotation.x += Math.sin(Date.now()*0.01)*0.05; // Shake
+            }
+        } else {
+            this.vel.x *= 0.8; this.vel.z *= 0.8; // friction
+        }
+
+        camYaw.position.addScaledVector(this.vel, dt);
+
+        if(camYaw.position.y < this.height) {
+            camYaw.position.y = this.height; this.vel.y = 0;
+            // Jump jump
+            if(Input.space) this.vel.y = Game.titanMode ? 150 : 50; 
+        }
+
+        // City Collision
+        let pBox = new THREE.Box3().setFromCenterAndSize(camYaw.position, new THREE.Vector3(Game.titanMode?10:2, this.height, Game.titanMode?10:2));
+        for(let box of buildingAABBs) {
+            if(pBox.intersectsBox(box)) {
+                let center = new THREE.Vector3(); box.getCenter(center);
+                let push = camYaw.position.clone().sub(center); push.y = 0; push.normalize();
+                camYaw.position.addScaledVector(push, this.speed * dt);
+            }
+        }
+    }
+};
+
+// --- INPUT HANDLING ---
+const Input = { w:false, a:false, s:false, d:false, space:false };
+
+window.addEventListener('keydown', e => {
+    let k = e.key.toLowerCase();
+    if(Input.hasOwnProperty(k)) Input[k] = true;
+    if(k===' ') Input.space = true;
+    if(k==='1') switchWep(1); if(k==='2') switchWep(2); if(k==='3') switchWep(3);
+    if(k==='g') throwGrenade();
+    if(k==='5') callAirSupport(); if(k==='6') activateTitan(); if(k==='7') activateNuke();
+});
+window.addEventListener('keyup', e => {
+    let k = e.key.toLowerCase();
+    if(Input.hasOwnProperty(k)) Input[k] = false;
+    if(k===' ') Input.space = false;
+});
+
+// Mouse / Pointer Lock
+let locked = false;
+document.addEventListener('pointerlockchange', () => locked = !!document.pointerLockElement);
+document.addEventListener('mousemove', e => {
+    if(!locked || !Game.active) return;
+    camYaw.rotation.y -= e.movementX * 0.002;
+    camPitch.rotation.x -= e.movementY * 0.002;
+    camPitch.rotation.x = Math.max(-Math.PI/2, Math.min(Math.PI/2, camPitch.rotation.x));
+});
+document.addEventListener('mousedown', e => {
+    if(!Game.active || isMobile) return;
+    if(!locked) { document.body.requestPointerLock(); return; }
+    if(e.button === 0) fire();
+});
+
+// UI Clicks (Desktop)
+document.getElementById('w1').onclick=()=>switchWep(1); document.getElementById('w2').onclick=()=>switchWep(2); document.getElementById('w3').onclick=()=>switchWep(3); document.getElementById('wG').onclick=()=>throwGrenade();
+document.getElementById('ab1').onclick=()=>callAirSupport(); document.getElementById('ab2').onclick=()=>activateTitan(); document.getElementById('ab3').onclick=()=>activateNuke();
+
+// Mobile Touch
+if(isMobile) {
+    let lId = null, rId = null, sLx=0, sLy=0, lRx=0, lRy=0;
+    const joy = document.getElementById('joy-left'), knob = joy.querySelector('.joystick-knob');
+    
+    document.getElementById('zone-left').addEventListener('touchstart', e => { e.preventDefault(); let t = e.changedTouches[0]; lId = t.identifier; sLx = t.clientX; sLy = t.clientY; joy.style.display='block'; joy.style.left=sLx+'px'; joy.style.top=sLy+'px'; knob.style.transform=`translate(-50%,-50%)`; });
+    document.getElementById('zone-left').addEventListener('touchmove', e => { e.preventDefault(); for(let t of e.changedTouches) { if(t.identifier===lId) { let dx=t.clientX-sLx, dy=t.clientY-sLy, d=Math.hypot(dx,dy); if(d>40){dx=(dx/d)*40; dy=(dy/d)*40;} knob.style.transform=`translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`; Input.w=dy<-10; Input.s=dy>10; Input.a=dx<-10; Input.d=dx>10; } }});
+    document.getElementById('zone-left').addEventListener('touchend', e => { e.preventDefault(); for(let t of e.changedTouches) if(t.identifier===lId){ lId=null; joy.style.display='none'; Input.w=Input.s=Input.a=Input.d=false; }});
+
+    document.getElementById('zone-right').addEventListener('touchstart', e => { e.preventDefault(); let t=e.changedTouches[0]; rId=t.identifier; lRx=t.clientX; lRy=t.clientY; });
+    document.getElementById('zone-right').addEventListener('touchmove', e => { e.preventDefault(); for(let t of e.changedTouches){ if(t.identifier===rId){ let dx=t.clientX-lRx, dy=t.clientY-lRy; lRx=t.clientX; lRy=t.clientY; camYaw.rotation.y-=dx*0.004; camPitch.rotation.x-=dy*0.004; camPitch.rotation.x = Math.max(-Math.PI/2, Math.min(Math.PI/2, camPitch.rotation.x)); }}});
+    document.getElementById('zone-right').addEventListener('touchend', e => { e.preventDefault(); for(let t of e.changedTouches) if(t.identifier===rId) rId=null; });
+
+    document.getElementById('btn-fire').addEventListener('touchstart', e=>{e.preventDefault(); fire();});
+    
+    // Bind UI clicks for mobile touches
+    ['w1','w2','w3','wG','ab1','ab2','ab3'].forEach(id => {
+        document.getElementById(id).addEventListener('touchstart', e => { e.preventDefault(); document.getElementById(id).click(); });
+    });
+}
+
+// --- GTA 6 LOADING LOGIC ---
+document.getElementById('btn-init').addEventListener('click', () => {
+    AudioFX.init();
+    document.getElementById('btn-init').style.display = 'none';
+    document.getElementById('loading-ui').style.display = 'flex';
+    
+    let bar = document.getElementById('load-bar');
+    let txt = document.getElementById('load-text');
+    let phases = ["SYNTHESIZING NEURAL MESH...", "COMPILING PBR SHADERS...", "GENERATING INFINITE CITY...", "CALCULATING ORGANIC PHYSICS...", "AWAKENING APEX ENGINE..."];
+    let progress = 0, phaseIdx = 0;
+    
+    AudioFX.playNoise(6.0, 0.5, true); // Loading Drone
+
+    let interval = setInterval(() => {
+        progress += Math.random() * 5;
+        if(progress > 100) progress = 100;
+        bar.style.width = progress + '%';
+        
+        if(progress > (phaseIdx+1)*20 && phaseIdx < phases.length-1) {
+            phaseIdx++; txt.innerText = phases[phaseIdx];
+            AudioFX.hit(); // Tick sound
+        }
+
+        if(progress >= 100) {
+            clearInterval(interval);
+            setTimeout(startGame, 500);
+        }
+    }, 100);
+});
+
+function startGame() {
+    if (document.documentElement.requestFullscreen) { try { document.documentElement.requestFullscreen(); } catch(e){} }
+    document.getElementById('loading-screen').style.display = 'none';
+    document.getElementById('ui-layer').style.display = 'flex';
+    if(isMobile) document.getElementById('mobile-controls').style.display = 'block';
+    
+    spawnBots();
+    Game.active = true;
+    if(!isMobile) document.body.requestPointerLock();
+}
+
+window.addEventListener('resize', () => {
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+});
+
+// --- MAIN RENDER LOOP ---
+const clock = new THREE.Clock();
+
+function animate() {
+    requestAnimationFrame(animate);
+    let dt = clock.getDelta(); if(dt > 0.1) dt = 0.1;
+
+    if(Game.active) {
+        if(fireTimer > 0) fireTimer -= dt;
+        
+        Player.update(dt);
+        bots.forEach(b => b.update(dt));
+        if(bots.filter(b=>!b.dead).length < 15) if(Math.random()<0.05) bots.push(new OrganicBot(true));
+
+        // Update Projectiles
+        for(let i=projectiles.length-1; i>=0; i--) {
+            let p = projectiles[i]; p.life -= dt;
+            p.mesh.position.addScaledVector(p.vel, dt);
+            
+            // Hit check
+            bots.forEach(b => {
+                if(!b.dead && b.root.position.distanceTo(p.mesh.position) < 3) {
+                    b.die(p.mesh.position, p.vel.clone().normalize(), 150);
+                    p.life = 0;
+                }
+            });
+
+            if(p.life <= 0) { createExplosion(p.mesh.position, 0xffaa00, 5, 0.2); scene.remove(p.mesh); projectiles.splice(i,1); }
+        }
+
+        grenades = grenades.filter(g => g.update(dt));
+        singularities = singularities.filter(s => s.update(dt));
+
+        // Update Particles
+        for(let i=particles.length-1; i>=0; i--) {
+            let p = particles[i]; p.life -= dt;
+            p.vel.y -= 20 * dt; p.mesh.position.addScaledVector(p.vel, dt);
+            p.mesh.scale.setScalar(p.life);
+            if(p.life <= 0) { scene.remove(p.mesh); particles.splice(i,1); }
+        }
+        
+        for(let i=lines.length-1; i>=0; i--) {
+            let l = lines[i]; l.life -= dt * 5;
+            l.mesh.material.opacity = l.life;
+            if(l.life <= 0) { scene.remove(l.mesh); lines.splice(i,1); }
+        }
+    }
+
+    // Passive animation
+    ambientLight.intensity = 0.3 + Math.sin(Date.now()*0.001)*0.1;
+
+    renderer.render(scene, camera);
+}
+animate();
+</script>
+</body>
+</html>
